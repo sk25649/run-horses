@@ -137,7 +137,7 @@ export default function HUD({
           {/* Title */}
           <div style={{ ...panel, flex: '0 0 auto' }}>
             <div style={{ color: '#ffffff', fontSize: 15, fontWeight: 800, letterSpacing: 3 }}>
-              말 달리자
+              RUN HORSES!
             </div>
             <div style={{ color: '#333355', fontSize: 9, letterSpacing: 4, marginTop: 2 }}>
               {gameMode === 'ai' ? 'SINGLE PLAYER' : 'TWO PLAYERS'}
@@ -269,7 +269,7 @@ export default function HUD({
           {/* Logo */}
           <div style={{ marginBottom: 8, textAlign: 'center' }}>
             <div style={{ fontSize: 42, fontWeight: 900, color: '#ffffff', letterSpacing: 6 }}>
-              말 달리자
+              RUN HORSES!
             </div>
             <div style={{ fontSize: 12, color: '#00ffcc', letterSpacing: 8, marginTop: 4 }}>
               RUN, HORSES! 3D
@@ -408,9 +408,9 @@ export default function HUD({
             OASIS REACHED
           </div>
           <div style={{ color: '#333355', fontSize: 13, letterSpacing: 2, marginBottom: 44 }}>
-            말 달리자 · {gameMode === 'ai' && winner === 'black'
+            {gameMode === 'ai' && winner === 'black'
               ? 'THE AI CLAIMS f6'
-              : `${winner.toUpperCase()} TEAM CLAIMS f6`}
+              : `${winner!.toUpperCase()} TEAM CLAIMS f6`}
           </div>
 
           <div style={{ display: 'flex', gap: 16 }}>
