@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, Suspense } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import {
@@ -17,6 +17,62 @@ import { gridToWorld } from './Board';
 import Board from './Board';
 import Pieces from './Pieces';
 import HUD from './HUD';
+
+// ─── Mobile tap handler ───────────────────────────────────────────────────────
+// OrbitControls intercepts pointer events on touch, so we bypass R3F entirely:
+// listen to raw touchend on the canvas DOM element, raycast against the board
+// plane (y=0), and convert the hit point to a grid cell.
+const TILE_GAP = 1.05;
+const BOARD_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+function MobileTapHandler({ onCellClick }: { onCellClick: (r: number, c: number) => void }) {
+  const { camera, gl } = useThree();
+  const callbackRef = useRef(onCellClick);
+  callbackRef.current = onCellClick;
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const tap = { x: 0, y: 0, active: false };
+
+    const onTouchStart = (e: TouchEvent) => {
+      tap.x = e.touches[0].clientX;
+      tap.y = e.touches[0].clientY;
+      tap.active = true;
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!tap.active) return;
+      tap.active = false;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - tap.x, dy = t.clientY - tap.y;
+      if (dx * dx + dy * dy > 144) return; // >12px = drag, ignore
+
+      const rect = canvas.getBoundingClientRect();
+      const nx = ((t.clientX - rect.left) / rect.width) * 2 - 1;
+      const ny = -((t.clientY - rect.top) / rect.height) * 2 + 1;
+
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2(nx, ny), camera);
+      const hit = new THREE.Vector3();
+      if (!ray.ray.intersectPlane(BOARD_PLANE, hit)) return;
+
+      const col = Math.round(hit.x / TILE_GAP + 5);
+      const row = Math.round(hit.z / TILE_GAP + 5);
+      if (col >= 0 && col < 11 && row >= 0 && row < 11) {
+        callbackRef.current(row, col);
+      }
+    };
+
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    canvas.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      canvas.removeEventListener('touchstart', onTouchStart);
+      canvas.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [camera, gl]);
+
+  return null;
+}
 
 // ─── Animated oasis point light ───────────────────────────────────────────────
 function OasisLight() {
@@ -116,8 +172,11 @@ export default function GameScene() {
   }, [gameMode, gameState.currentTurn, gameState.winner, difficulty]);
 
   // ── Cell click handler ───────────────────────────────────────────────────────
+  const lastClickMs = useRef(0);
   const handleCellClick = (row: number, col: number) => {
-    // Block input during AI's thinking turn
+    const now = Date.now();
+    if (now - lastClickMs.current < 200) return; // debounce double-fires on mobile
+    lastClickMs.current = now;
     if (aiThinking || (gameMode === 'ai' && gameState.currentTurn === 'black')) return;
     setGameState(prev => selectCell(prev, row, col));
   };
@@ -177,6 +236,8 @@ export default function GameScene() {
 
         <fog attach="fog" args={['#04040e', 18, 40]} />
         <Stars />
+
+        <MobileTapHandler onCellClick={handleCellClick} />
 
         <Suspense fallback={null}>
           <Board gameState={gameState} onCellClick={handleCellClick} />
