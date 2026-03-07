@@ -1,6 +1,8 @@
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type Terrain = 'oasis' | 'garden' | 'desert';
 export type Player = 'white' | 'black';
+export type GameMode = 'pvp' | 'ai';
+export type Difficulty = 'easy' | 'medium' | 'hard';
 
 export interface Piece {
   player: Player;
@@ -15,6 +17,13 @@ export interface GameState {
   selectedCell: [number, number] | null;
   validMoves: [number, number][];
   winner: Player | null;
+}
+
+export interface AIMove {
+  fromRow: number;
+  fromCol: number;
+  toRow: number;
+  toCol: number;
 }
 
 // ─── Board constants ──────────────────────────────────────────────────────────
@@ -60,13 +69,19 @@ export function colLabel(col: number): string {
 export function createInitialState(): GameState {
   const board: Board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
 
-  // White starts at row k (10)
-  board[10][2] = { player: 'white', id: 'w1' };
-  board[10][8] = { player: 'white', id: 'w2' };
+  // White: a1,a2,a3,b1,b2,c1 (top-left) & i11,j10,j11,k9,k10,k11 (bottom-right)
+  const whiteCells: [number, number][] = [
+    [0,0],[0,1],[0,2],[1,0],[1,1],[2,0],
+    [8,10],[9,9],[9,10],[10,8],[10,9],[10,10],
+  ];
+  whiteCells.forEach(([r, c], i) => { board[r][c] = { player: 'white', id: `w${i + 1}` }; });
 
-  // Black starts at row a (0)
-  board[0][2] = { player: 'black', id: 'b1' };
-  board[0][8] = { player: 'black', id: 'b2' };
+  // Black: i1,j1,j2,k1,k2,k3 (bottom-left) & a9,a10,a11,b10,b11,c11 (top-right)
+  const blackCells: [number, number][] = [
+    [8,0],[9,0],[9,1],[10,0],[10,1],[10,2],
+    [0,8],[0,9],[0,10],[1,9],[1,10],[2,10],
+  ];
+  blackCells.forEach(([r, c], i) => { board[r][c] = { player: 'black', id: `b${i + 1}` }; });
 
   return { board, currentTurn: 'white', selectedCell: null, validMoves: [], winner: null };
 }
@@ -87,21 +102,29 @@ export function getValidMoves(state: GameState, row: number, col: number): [numb
     const offsets = [[-2,-1],[-2,1],[2,-1],[2,1],[-1,-2],[-1,2],[1,-2],[1,2]];
     for (const [dr, dc] of offsets) {
       const nr = row + dr, nc = col + dc;
-      if (inBounds(nr, nc) && !occupied(nr, nc)) {
+      if (inBounds(nr, nc) && !occupied(nr, nc) && getTerrain(nr, nc) === 'desert') {
         moves.push([nr, nc]);
       }
     }
   }
 
-  // ── Horizontal Slide: all terrain ─────────────────────────────────────────
-  for (let c = col - 1; c >= 0; c--) {
-    if (occupied(row, c)) break;
-    moves.push([row, c]);
-  }
-  for (let c = col + 1; c < COLS; c++) {
-    if (occupied(row, c)) break;
-    moves.push([row, c]);
-  }
+  // ── Horizontal Slide: end position only ──────────────────────────────────
+  let lastC = col;
+  for (let c = col - 1; c >= 0; c--) { if (occupied(row, c)) break; lastC = c; }
+  if (lastC !== col) moves.push([row, lastC]);
+
+  lastC = col;
+  for (let c = col + 1; c < COLS; c++) { if (occupied(row, c)) break; lastC = c; }
+  if (lastC !== col) moves.push([row, lastC]);
+
+  // ── Vertical Slide: end position only ────────────────────────────────────
+  let lastR = row;
+  for (let r = row - 1; r >= 0; r--) { if (occupied(r, col)) break; lastR = r; }
+  if (lastR !== row) moves.push([lastR, col]);
+
+  lastR = row;
+  for (let r = row + 1; r < ROWS; r++) { if (occupied(r, col)) break; lastR = r; }
+  if (lastR !== row) moves.push([lastR, col]);
 
   return moves;
 }
@@ -163,4 +186,144 @@ export function selectCell(state: GameState, row: number, col: number): GameStat
   }
 
   return state;
+}
+
+// ─── AI: Minimax with alpha-beta pruning ─────────────────────────────────────
+
+interface MoveCandidate {
+  fromRow: number; fromCol: number;
+  toRow:   number; toCol:   number;
+}
+
+function getAllMovesForState(state: GameState): MoveCandidate[] {
+  const moves: MoveCandidate[] = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const piece = state.board[r][c];
+      if (!piece || piece.player !== state.currentTurn) continue;
+      for (const [tr, tc] of getValidMoves(state, r, c)) {
+        moves.push({ fromRow: r, fromCol: c, toRow: tr, toCol: tc });
+      }
+    }
+  }
+  return moves;
+}
+
+/** True if the piece at (r,c) can slide directly to the oasis with no blockers */
+function canReachOasis(board: Board, r: number, c: number): boolean {
+  if (r === OASIS[0]) {
+    const lo = Math.min(c, OASIS[1]) + 1, hi = Math.max(c, OASIS[1]);
+    for (let cc = lo; cc < hi; cc++) if (board[r][cc] !== null) return false;
+    return c !== OASIS[1];
+  }
+  if (c === OASIS[1]) {
+    const lo = Math.min(r, OASIS[0]) + 1, hi = Math.max(r, OASIS[0]);
+    for (let rr = lo; rr < hi; rr++) if (board[rr][c] !== null) return false;
+    return r !== OASIS[0];
+  }
+  return false;
+}
+
+/**
+ * Static evaluation — positive = good for black, negative = good for white.
+ * Focuses on the *best* piece per side (the one closest to winning),
+ * with bonuses for oasis-row/col alignment and immediate-win threats.
+ */
+function evaluate(state: GameState): number {
+  if (state.winner === 'black') return  100_000;
+  if (state.winner === 'white') return -100_000;
+
+  let blackBest = -Infinity, whiteBest = -Infinity;
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const piece = state.board[r][c];
+      if (!piece) continue;
+      const manhattan = Math.abs(r - OASIS[0]) + Math.abs(c - OASIS[1]);
+      let s = 20 - manhattan;
+      if (r === OASIS[0]) s += 8;
+      if (c === OASIS[1]) s += 8;
+      if (canReachOasis(state.board, r, c)) s += 60; // immediate win threat
+      if (piece.player === 'black') blackBest = Math.max(blackBest, s);
+      else                          whiteBest = Math.max(whiteBest, s);
+    }
+  }
+
+  return (blackBest - whiteBest) * 10;
+}
+
+function minimax(
+  state: GameState,
+  depth: number,
+  alpha: number,
+  beta: number,
+): number {
+  if (state.winner !== null) return evaluate(state);
+  if (depth === 0) return evaluate(state);
+
+  const moves = getAllMovesForState(state);
+  if (moves.length === 0) return evaluate(state);
+
+  // Move ordering: winning moves and oasis-aligned moves first (improves pruning)
+  moves.sort((a, b) => {
+    const score = (m: MoveCandidate) => {
+      if (m.toRow === OASIS[0] && m.toCol === OASIS[1]) return 1000;
+      return (m.toRow === OASIS[0] || m.toCol === OASIS[1]) ? 10 : 0;
+    };
+    return score(b) - score(a);
+  });
+
+  if (state.currentTurn === 'black') {
+    let best = -Infinity;
+    for (const m of moves) {
+      const val = minimax(applyMove(state, m.fromRow, m.fromCol, m.toRow, m.toCol), depth - 1, alpha, beta);
+      if (val > best) best = val;
+      if (val > alpha) alpha = val;
+      if (beta <= alpha) break;
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (const m of moves) {
+      const val = minimax(applyMove(state, m.fromRow, m.fromCol, m.toRow, m.toCol), depth - 1, alpha, beta);
+      if (val < best) best = val;
+      if (val < beta) beta = val;
+      if (beta <= alpha) break;
+    }
+    return best;
+  }
+}
+
+export function getBestAIMove(state: GameState, difficulty: Difficulty = 'medium'): AIMove | null {
+  if (state.currentTurn !== 'black' || state.winner) return null;
+
+  const moves = getAllMovesForState(state);
+  if (moves.length === 0) return null;
+
+  // Easy: random move
+  if (difficulty === 'easy') {
+    const pick = moves[Math.floor(Math.random() * moves.length)];
+    return { fromRow: pick.fromRow, fromCol: pick.fromCol, toRow: pick.toRow, toCol: pick.toCol };
+  }
+
+  // Always take an instant win
+  const winMove = moves.find(m => m.toRow === OASIS[0] && m.toCol === OASIS[1]);
+  if (winMove) return { fromRow: winMove.fromRow, fromCol: winMove.fromCol, toRow: winMove.toRow, toCol: winMove.toCol };
+
+  const depth = difficulty === 'hard' ? 4 : 2;
+
+  let bestMove: MoveCandidate | null = null;
+  let bestVal = -Infinity;
+
+  for (const move of moves) {
+    const val = minimax(
+      applyMove(state, move.fromRow, move.fromCol, move.toRow, move.toCol),
+      depth - 1, -Infinity, Infinity,
+    );
+    if (val > bestVal) { bestVal = val; bestMove = move; }
+  }
+
+  return bestMove
+    ? { fromRow: bestMove.fromRow, fromCol: bestMove.fromCol, toRow: bestMove.toRow, toCol: bestMove.toCol }
+    : null;
 }

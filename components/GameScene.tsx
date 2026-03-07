@@ -1,10 +1,18 @@
 'use client';
 
-import { useState, useRef, Suspense } from 'react';
+import { useState, useRef, useEffect, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { GameState, createInitialState, selectCell } from '@/lib/gameLogic';
+import {
+  GameState,
+  GameMode,
+  Difficulty,
+  createInitialState,
+  selectCell,
+  applyMove,
+  getBestAIMove,
+} from '@/lib/gameLogic';
 import { gridToWorld } from './Board';
 import Board from './Board';
 import Pieces from './Pieces';
@@ -61,13 +69,68 @@ function Stars() {
 
 // ─── Main scene ────────────────────────────────────────────────────────────────
 export default function GameScene() {
-  const [gameState, setGameState] = useState<GameState>(createInitialState);
+  const [gameMode, setGameMode]     = useState<GameMode | null>(null);
+  const [gameState, setGameState]   = useState<GameState>(createInitialState);
+  const [aiThinking, setAiThinking] = useState(false);
+  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
 
+  // ── AI turn trigger ──────────────────────────────────────────────────────────
+  // Fires whenever it becomes black's turn in AI mode.
+  useEffect(() => {
+    if (
+      gameMode !== 'ai' ||
+      gameState.currentTurn !== 'black' ||
+      gameState.winner !== null
+    ) return;
+
+    let cancelled = false;
+    setAiThinking(true);
+
+    const id = window.setTimeout(() => {
+      if (cancelled) return;
+
+      setGameState(prev => {
+        // Guard: only act if it's still black's turn and game is ongoing
+        if (prev.currentTurn !== 'black' || prev.winner !== null) return prev;
+        const move = getBestAIMove(prev, difficulty);
+        if (!move) return prev;
+        return applyMove(prev, move.fromRow, move.fromCol, move.toRow, move.toCol);
+      });
+
+      if (!cancelled) setAiThinking(false);
+    }, 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(id);
+      setAiThinking(false);
+    };
+  }, [gameMode, gameState.currentTurn, gameState.winner, difficulty]);
+
+  // ── Cell click handler ───────────────────────────────────────────────────────
   const handleCellClick = (row: number, col: number) => {
+    // Block input during AI's thinking turn
+    if (aiThinking || (gameMode === 'ai' && gameState.currentTurn === 'black')) return;
     setGameState(prev => selectCell(prev, row, col));
   };
 
-  const handleReset = () => setGameState(createInitialState());
+  // ── Game controls ─────────────────────────────────────────────────────────────
+  const handleReset = () => {
+    setAiThinking(false);
+    setGameState(createInitialState());
+  };
+
+  const handleChangeMode = () => {
+    setAiThinking(false);
+    setGameState(createInitialState());
+    setGameMode(null);
+  };
+
+  const handleSelectMode = (mode: GameMode, diff?: Difficulty) => {
+    if (diff) setDifficulty(diff);
+    setGameState(createInitialState());
+    setGameMode(mode);
+  };
 
   return (
     <div
@@ -101,24 +164,17 @@ export default function GameScene() {
           shadow-camera-bottom={-12}
         />
 
-        {/* Rim light from opposite side */}
         <directionalLight position={[-8, 6, -6]} intensity={0.3} color="#2244aa" />
-
         <OasisLight />
 
-        {/* ── Scene fog ───────────────────────────────────────────────── */}
         <fog attach="fog" args={['#04040e', 18, 40]} />
-
-        {/* ── Stars ───────────────────────────────────────────────────── */}
         <Stars />
 
-        {/* ── Board + Pieces ──────────────────────────────────────────── */}
         <Suspense fallback={null}>
           <Board gameState={gameState} onCellClick={handleCellClick} />
           <Pieces gameState={gameState} onCellClick={handleCellClick} />
         </Suspense>
 
-        {/* ── Camera controls ─────────────────────────────────────────── */}
         <OrbitControls
           target={[0, 0, 0]}
           minPolarAngle={Math.PI / 8}
@@ -131,8 +187,15 @@ export default function GameScene() {
         />
       </Canvas>
 
-      {/* ── 2-D HUD overlay ─────────────────────────────────────────────── */}
-      <HUD gameState={gameState} onReset={handleReset} />
+      <HUD
+        gameState={gameState}
+        gameMode={gameMode}
+        aiThinking={aiThinking}
+        difficulty={difficulty}
+        onReset={handleReset}
+        onChangeMode={handleChangeMode}
+        onSelectMode={handleSelectMode}
+      />
     </div>
   );
 }

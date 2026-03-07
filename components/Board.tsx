@@ -13,7 +13,7 @@ import {
 
 // ─── Module-level constants (avoid per-render allocations) ───────────────────
 const HIDDEN_MAT  = new THREE.Matrix4().makeTranslation(0, -9999, 0);
-const COL_VALID   = new THREE.Color('#f5c842');
+const COL_VALID   = new THREE.Color('#aa00ff');
 const COL_SEL     = new THREE.Color('#00e5ff');
 
 // ─── World-space helpers ──────────────────────────────────────────────────────
@@ -183,7 +183,7 @@ export default function Board({ gameState, onCellClick }: BoardProps) {
           vertexColors
           transparent
           opacity={0.55}
-          emissive="#ffaa00"
+          emissive="#aa00ff"
           emissiveIntensity={0.35}
           roughness={0.3}
           depthWrite={false}

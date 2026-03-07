@@ -17,18 +17,46 @@ interface PieceProps {
 
 function PieceMesh({ row, col, player, isSelected, onCellClick }: PieceProps) {
   const groupRef = useRef<THREE.Group>(null!);
+  const animXZ = useRef<{ x: number; z: number } | null>(null);
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return;
-    const base = gridToWorld(row, col);
+    const target = gridToWorld(row, col);
     const bob = isSelected ? 0.18 * Math.sin(clock.elapsedTime * 4) : 0;
-    groupRef.current.position.set(base.x, base.y + 0.22 + bob, base.z);
+
+    if (!animXZ.current) {
+      animXZ.current = { x: target.x, z: target.z };
+    }
+
+    animXZ.current.x += (target.x - animXZ.current.x) * 0.09;
+    animXZ.current.z += (target.z - animXZ.current.z) * 0.09;
+
+    const px = animXZ.current.x;
+    const pz = animXZ.current.z;
+
+    groupRef.current.position.set(px, 0.22 + bob, pz);
+
+    // Rotate so the horse head (+x local) always faces toward the board center (0,0,0).
+    // θ = atan2(pz, -px)  →  local +x maps to world (-px, 0, -pz) normalised.
+    if (Math.abs(px) > 0.01 || Math.abs(pz) > 0.01) {
+      groupRef.current.rotation.y = Math.atan2(pz, -px);
+    }
   });
 
   const isWhite = player === 'white';
-  const bodyColor  = isWhite ? '#d8d8d8' : '#1c1c1c';
-  const topColor   = isWhite ? '#f0f0f0' : '#2a2a2a';
-  const emissive   = isSelected ? (isWhite ? '#4488ff' : '#8844cc') : '#000000';
+  const color    = isWhite ? '#ffffff' : '#7a7a8a';
+  const emissive = isSelected ? (isWhite ? '#4488ff' : '#8844cc') : '#000000';
+  const emissiveIntensity = isSelected ? 1.0 : 0;
+
+  // Shared material props — knight faces the +x axis so the head profile
+  // reads clearly from the default camera angle.
+  const m = {
+    color,
+    roughness:  isWhite ? 0.18 : 0.32,
+    metalness:  isWhite ? 0.82 : 0.68,
+    emissive,
+    emissiveIntensity,
+  } as const;
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
@@ -36,35 +64,47 @@ function PieceMesh({ row, col, player, isSelected, onCellClick }: PieceProps) {
   };
 
   return (
-    <group ref={groupRef} onClick={handleClick} castShadow>
-      {/* ── Cylinder body ─────────────────────────────────────────────── */}
-      <mesh castShadow>
-        <cylinderGeometry args={[0.28, 0.33, 0.38, 20]} />
-        <meshStandardMaterial
-          color={bodyColor}
-          roughness={0.25}
-          metalness={0.75}
-          emissive={emissive}
-          emissiveIntensity={isSelected ? 1.2 : 0}
-        />
+    <group ref={groupRef} onClick={handleClick}>
+      {/* ── Base disc ─────────────────────────────────────────────────── */}
+      <mesh castShadow position={[0, -0.13, 0]}>
+        <cylinderGeometry args={[0.33, 0.36, 0.09, 28]} />
+        <meshStandardMaterial {...m} />
       </mesh>
 
-      {/* ── Sphere cap ────────────────────────────────────────────────── */}
-      <mesh position={[0, 0.32, 0]} castShadow>
-        <sphereGeometry args={[0.2, 20, 20]} />
-        <meshStandardMaterial
-          color={topColor}
-          roughness={0.18}
-          metalness={0.85}
-          emissive={emissive}
-          emissiveIntensity={isSelected ? 0.8 : 0}
-        />
+      {/* ── Tapered body column ───────────────────────────────────────── */}
+      <mesh castShadow position={[0, 0.10, 0]}>
+        <cylinderGeometry args={[0.17, 0.28, 0.44, 18]} />
+        <meshStandardMaterial {...m} />
+      </mesh>
+
+      {/* ── Shoulder collar (flares slightly outward) ─────────────────── */}
+      <mesh castShadow position={[0, 0.34, 0]}>
+        <cylinderGeometry args={[0.21, 0.18, 0.08, 18]} />
+        <meshStandardMaterial {...m} />
+      </mesh>
+
+      {/* ── Neck (thin cylinder angled forward along +x) ──────────────── */}
+      <mesh castShadow position={[0.06, 0.51, 0]} rotation={[0, 0, -0.24]}>
+        <cylinderGeometry args={[0.11, 0.15, 0.30, 14]} />
+        <meshStandardMaterial {...m} />
+      </mesh>
+
+      {/* ── Horse head (box tilted forward) ───────────────────────────── */}
+      <mesh castShadow position={[0.17, 0.68, 0]} rotation={[0, 0, -0.40]}>
+        <boxGeometry args={[0.30, 0.23, 0.27]} />
+        <meshStandardMaterial {...m} />
+      </mesh>
+
+      {/* ── Muzzle / snout ────────────────────────────────────────────── */}
+      <mesh castShadow position={[0.30, 0.56, 0]} rotation={[0, 0, -0.18]}>
+        <boxGeometry args={[0.18, 0.13, 0.21]} />
+        <meshStandardMaterial {...m} />
       </mesh>
 
       {/* ── Selection ring ────────────────────────────────────────────── */}
       {isSelected && (
-        <mesh position={[0, -0.2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.36, 0.46, 36]} />
+        <mesh position={[0, -0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.38, 0.48, 36]} />
           <meshBasicMaterial
             color={isWhite ? '#00aaff' : '#aa44ff'}
             transparent
