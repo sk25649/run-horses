@@ -272,7 +272,7 @@ export default function HUD({
               RUN HORSES!
             </div>
             <div style={{ fontSize: 12, color: '#00ffcc', letterSpacing: 8, marginTop: 4 }}>
-              RUN, HORSES! 3D
+              BRAIN TEASING 3D GAME
             </div>
           </div>
 
