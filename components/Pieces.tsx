@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useCallback } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GameState } from '@/lib/gameLogic';
@@ -58,13 +58,22 @@ function PieceMesh({ row, col, player, isSelected, onCellClick }: PieceProps) {
     emissiveIntensity,
   } as const;
 
-  const handleClick = (e: ThreeEvent<MouseEvent>) => {
+  const tapStart = useRef<{ x: number; y: number } | null>(null);
+  const handlePointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
+    tapStart.current = { x: e.clientX, y: e.clientY };
+  }, []);
+  const handlePointerUp = useCallback((e: ThreeEvent<PointerEvent>) => {
+    const s = tapStart.current;
+    tapStart.current = null;
+    if (!s) return;
+    const dx = e.clientX - s.x, dy = e.clientY - s.y;
+    if (dx * dx + dy * dy > 100) return;
     e.stopPropagation();
     onCellClick(row, col);
-  };
+  }, [onCellClick, row, col]);
 
   return (
-    <group ref={groupRef} onClick={handleClick}>
+    <group ref={groupRef} onPointerDown={handlePointerDown} onPointerUp={handlePointerUp}>
       {/* ── Base disc ─────────────────────────────────────────────────── */}
       <mesh castShadow position={[0, -0.13, 0]}>
         <cylinderGeometry args={[0.33, 0.36, 0.09, 28]} />

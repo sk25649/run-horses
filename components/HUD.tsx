@@ -1,7 +1,7 @@
 'use client';
 
 import { GameState, GameMode, Difficulty, canLJump, getTerrain, rowLabel, colLabel } from '@/lib/gameLogic';
-import { CSSProperties } from 'react';
+import { CSSProperties, useState, useEffect } from 'react';
 
 // ─── Shared panel styles ──────────────────────────────────────────────────────
 const panel: CSSProperties = {
@@ -104,6 +104,14 @@ export default function HUD({
     ? `${rowLabel(selectedCell[0])}${colLabel(selectedCell[1])}`
     : '—';
 
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   // Human-readable turn label
   const isAITurn = gameMode === 'ai' && currentTurn === 'black';
   const turnLabel = gameMode === 'ai'
@@ -127,75 +135,89 @@ export default function HUD({
         <div
           style={{
             position: 'fixed', top: 0, left: 0, right: 0,
-            display: 'flex', alignItems: 'flex-start', gap: 12,
-            padding: '16px 20px',
+            display: 'flex', alignItems: 'flex-start', gap: 8,
+            padding: isMobile ? '10px 12px' : '16px 20px',
             background: 'linear-gradient(to bottom, rgba(4,4,14,0.92) 0%, transparent 100%)',
             pointerEvents: 'none',
             zIndex: 10,
+            flexWrap: 'nowrap',
+            overflow: 'hidden',
           }}
         >
           {/* Title */}
-          <div style={{ ...panel, flex: '0 0 auto' }}>
-            <div style={{ color: '#ffffff', fontSize: 15, fontWeight: 800, letterSpacing: 3 }}>
+          <div style={{ ...panel, flex: '0 0 auto', padding: isMobile ? '7px 12px' : '10px 18px' }}>
+            <div style={{ color: '#ffffff', fontSize: isMobile ? 12 : 15, fontWeight: 800, letterSpacing: 2 }}>
               RUN HORSES!
             </div>
-            <div style={{ color: '#333355', fontSize: 9, letterSpacing: 4, marginTop: 2 }}>
-              {gameMode === 'ai' ? 'SINGLE PLAYER' : 'TWO PLAYERS'}
-            </div>
-          </div>
-
-          {/* Turn */}
-          <div style={{ ...panel, minWidth: 150 }}>
-            <div style={lbl}>CURRENT TURN</div>
-            <div style={{ ...val, color: turnColor }}>{turnLabel}</div>
-          </div>
-
-          {/* Ability / AI thinking */}
-          <div style={{ ...panel, minWidth: 185 }}>
-            <div style={lbl}>ABILITY STATUS</div>
-            {aiThinking ? (
-              <div className="ai-blink" style={{ ...val, color: '#ff6666' }}>
-                ◈ AI THINKING...
+            {!isMobile && (
+              <div style={{ color: '#333355', fontSize: 9, letterSpacing: 4, marginTop: 2 }}>
+                {gameMode === 'ai' ? 'SINGLE PLAYER' : 'TWO PLAYERS'}
               </div>
-            ) : (
-              <div style={{ ...val, color: abilityColor }}>{abilityText}</div>
             )}
           </div>
 
-          {/* Selected coord */}
-          <div style={{ ...panel, minWidth: 110 }}>
-            <div style={lbl}>SELECTED</div>
-            <div style={{ ...val, color: '#cccccc' }}>
-              {coordLabel}{' '}
-              <span style={{ fontWeight: 400, color: '#44445a' }}>{terrainLabel}</span>
-            </div>
+          {/* Turn */}
+          <div style={{ ...panel, flex: '0 0 auto', padding: isMobile ? '7px 12px' : '10px 18px' }}>
+            <div style={{ ...lbl, fontSize: isMobile ? 8 : 9 }}>TURN</div>
+            <div style={{ ...val, color: turnColor, fontSize: isMobile ? 11 : 13 }}>{turnLabel}</div>
           </div>
 
-          {/* Move count */}
-          <div style={{ ...panel, minWidth: 80 }}>
-            <div style={lbl}>MOVES</div>
-            <div style={{ ...val, color: '#00ffcc' }}>
-              {gameState.validMoves.length || '—'}
+          {/* Ability / AI thinking — hidden on mobile */}
+          {!isMobile && (
+            <div style={{ ...panel, minWidth: 185 }}>
+              <div style={lbl}>ABILITY STATUS</div>
+              {aiThinking ? (
+                <div className="ai-blink" style={{ ...val, color: '#ff6666' }}>◈ AI THINKING...</div>
+              ) : (
+                <div style={{ ...val, color: abilityColor }}>{abilityText}</div>
+              )}
             </div>
-          </div>
+          )}
 
-          {/* Difficulty (AI mode only) */}
+          {/* Selected coord — hidden on mobile */}
+          {!isMobile && (
+            <div style={{ ...panel, minWidth: 110 }}>
+              <div style={lbl}>SELECTED</div>
+              <div style={{ ...val, color: '#cccccc' }}>
+                {coordLabel}{' '}
+                <span style={{ fontWeight: 400, color: '#44445a' }}>{terrainLabel}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Move count — hidden on mobile */}
+          {!isMobile && (
+            <div style={{ ...panel, minWidth: 80 }}>
+              <div style={lbl}>MOVES</div>
+              <div style={{ ...val, color: '#00ffcc' }}>{gameState.validMoves.length || '—'}</div>
+            </div>
+          )}
+
+          {/* Difficulty */}
           {gameMode === 'ai' && (
-            <div style={{ ...panel, minWidth: 100 }}>
-              <div style={lbl}>DIFFICULTY</div>
+            <div style={{ ...panel, flex: '0 0 auto', padding: isMobile ? '7px 12px' : '10px 18px' }}>
+              <div style={{ ...lbl, fontSize: isMobile ? 8 : 9 }}>DIFF</div>
               <div style={{
                 ...val,
+                fontSize: isMobile ? 11 : 13,
                 color: difficulty === 'easy' ? '#44dd88' : difficulty === 'medium' ? '#f5c842' : '#ff4466',
               }}>
                 {difficulty.toUpperCase()}
               </div>
             </div>
           )}
+
+          {/* AI thinking indicator on mobile */}
+          {isMobile && aiThinking && (
+            <div style={{ ...panel, flex: '0 0 auto', padding: '7px 12px' }}>
+              <div className="ai-blink" style={{ color: '#ff6666', fontSize: 11, fontWeight: 700 }}>◈ AI...</div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* ── Legend ──────────────────────────────────────────────────────── */}
-      {gameMode !== null && (
+      {/* ── Legend — hidden on mobile ────────────────────────────────────── */}
+      {gameMode !== null && !isMobile && (
         <div
           style={{
             position: 'fixed', bottom: 20, left: 20,
@@ -221,8 +243,8 @@ export default function HUD({
         </div>
       )}
 
-      {/* ── Controls hint ───────────────────────────────────────────────── */}
-      {gameMode !== null && !isAITurn && (
+      {/* ── Controls hint — hidden on mobile ────────────────────────────── */}
+      {gameMode !== null && !isAITurn && !isMobile && (
         <div
           style={{
             position: 'fixed', bottom: 20, right: 20,
@@ -230,8 +252,8 @@ export default function HUD({
           }}
         >
           <div style={{ color: '#33334a', fontSize: 10, letterSpacing: '1px', lineHeight: 1.8 }}>
-            Click piece → select<br />
-            Click gold tile → move<br />
+            Tap piece → select<br />
+            Tap highlighted tile → move<br />
             Drag → orbit camera
           </div>
         </div>
@@ -268,28 +290,36 @@ export default function HUD({
         >
           {/* Logo */}
           <div style={{ marginBottom: 8, textAlign: 'center' }}>
-            <div style={{ fontSize: 42, fontWeight: 900, color: '#ffffff', letterSpacing: 6 }}>
+            <div style={{ fontSize: isMobile ? 28 : 42, fontWeight: 900, color: '#ffffff', letterSpacing: isMobile ? 3 : 6 }}>
               RUN HORSES!
             </div>
-            <div style={{ fontSize: 12, color: '#00ffcc', letterSpacing: 8, marginTop: 4 }}>
+            <div style={{ fontSize: isMobile ? 10 : 12, color: '#00ffcc', letterSpacing: isMobile ? 4 : 8, marginTop: 4 }}>
               BRAIN TEASING 3D GAME
             </div>
           </div>
 
-          <div style={{ color: '#333355', fontSize: 11, letterSpacing: 4, margin: '28px 0 32px' }}>
+          <div style={{ color: '#333355', fontSize: 11, letterSpacing: 4, margin: isMobile ? '16px 0 20px' : '28px 0 32px' }}>
             CHOOSE YOUR MODE
           </div>
 
-          <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+          <div style={{
+            display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: isMobile ? 12 : 20,
+            alignItems: 'flex-start',
+            width: isMobile ? '90vw' : undefined,
+            maxWidth: isMobile ? 360 : undefined,
+          }}>
             {/* Single Player card with difficulty */}
             <div
               style={{
                 background: 'rgba(255,255,255,0.02)',
                 border: '1px solid rgba(255,255,255,0.1)',
                 borderRadius: 12,
-                padding: '28px 36px',
+                padding: isMobile ? '20px 22px' : '28px 36px',
                 textAlign: 'left',
-                minWidth: 200,
+                width: isMobile ? '100%' : undefined,
+                minWidth: isMobile ? undefined : 200,
               }}
             >
               <div style={{ fontSize: 28, marginBottom: 10 }}>🤖</div>
@@ -351,10 +381,11 @@ export default function HUD({
                 background: 'rgba(255,255,255,0.02)',
                 border: '1px solid rgba(255,255,255,0.1)',
                 borderRadius: 12,
-                padding: '28px 36px',
+                padding: isMobile ? '20px 22px' : '28px 36px',
                 cursor: 'pointer',
                 textAlign: 'left',
-                minWidth: 200,
+                width: isMobile ? '100%' : undefined,
+                minWidth: isMobile ? undefined : 200,
                 fontFamily: 'inherit',
                 transition: 'background 0.15s, border-color 0.15s',
               }}
@@ -394,9 +425,10 @@ export default function HUD({
           {/* Win headline changes based on mode */}
           <div
             style={{
-              fontSize: 72, fontWeight: 900, letterSpacing: 4, marginBottom: 12,
+              fontSize: isMobile ? 38 : 72, fontWeight: 900, letterSpacing: isMobile ? 2 : 4, marginBottom: 12,
               color: winner === 'white' ? '#e8e8e8' : '#aaaacc',
               textShadow: '0 0 60px rgba(0,255,200,0.7)',
+              textAlign: 'center',
             }}
           >
             {gameMode === 'ai'

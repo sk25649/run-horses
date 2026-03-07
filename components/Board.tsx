@@ -135,16 +135,26 @@ export default function Board({ gameState, onCellClick }: BoardProps) {
     if (mat) mat.emissiveIntensity = 0.55 + 0.65 * Math.sin(clock.elapsedTime * 2.4);
   });
 
-  // ── Click handler via R3F instance raycasting ────────────────────────────────
-  const handleClick = useCallback(
-    (e: ThreeEvent<MouseEvent>) => {
-      e.stopPropagation();
-      if (e.instanceId == null) return;
-      const [row, col] = all[e.instanceId];
-      onCellClick(row, col);
-    },
-    [all, onCellClick],
-  );
+  // ── Tap detection (works for both mouse and touch) ───────────────────────────
+  // OrbitControls eats synthetic `onClick` on mobile; tracking pointerDown/Up
+  // and checking displacement is the reliable cross-device approach.
+  const tapStart = useRef<{ x: number; y: number; iid: number } | null>(null);
+
+  const handlePointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
+    if (e.instanceId == null) return;
+    tapStart.current = { x: e.clientX, y: e.clientY, iid: e.instanceId };
+  }, []);
+
+  const handlePointerUp = useCallback((e: ThreeEvent<PointerEvent>) => {
+    const s = tapStart.current;
+    tapStart.current = null;
+    if (!s || e.instanceId == null || e.instanceId !== s.iid) return;
+    const dx = e.clientX - s.x, dy = e.clientY - s.y;
+    if (dx * dx + dy * dy > 100) return; // >10px movement = drag, not tap
+    e.stopPropagation();
+    const [row, col] = all[e.instanceId];
+    onCellClick(row, col);
+  }, [all, onCellClick]);
 
   // Shared box geometry element (R3F creates separate THREE objects per usage)
   const tileGeo  = <boxGeometry args={[TILE_W, TILE_H, TILE_W]} />;
@@ -208,9 +218,10 @@ export default function Board({ gameState, onCellClick }: BoardProps) {
       <instancedMesh
         ref={clickRef}
         args={[undefined, undefined, ROWS * COLS]}
-        onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
       >
-        <boxGeometry args={[1.0, 0.5, 1.0]} />
+        <boxGeometry args={[1.0, 0.8, 1.0]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </instancedMesh>
 

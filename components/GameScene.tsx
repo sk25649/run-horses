@@ -74,6 +74,14 @@ export default function GameScene() {
   const [aiThinking, setAiThinking] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
 
+  const [cameraProps] = useState(() => {
+    const mobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    return {
+      position: (mobile ? [0, 22, 16] : [0, 15, 11]) as [number, number, number],
+      fov: mobile ? 54 : 42,
+    };
+  });
+
   // ── AI turn trigger ──────────────────────────────────────────────────────────
   // Fires whenever it becomes black's turn in AI mode.
   useEffect(() => {
@@ -143,7 +151,7 @@ export default function GameScene() {
       }}
     >
       <Canvas
-        camera={{ position: [0, 15, 11], fov: 42 }}
+        camera={{ position: cameraProps.position, fov: cameraProps.fov }}
         shadows
         gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1 }}
       >
