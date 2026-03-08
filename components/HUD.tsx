@@ -212,7 +212,9 @@ export default function HUD({
     const url = window.location.href;
     const isWin = context === 'win';
     const text = isWin
-      ? `I just claimed the Oasis in Run Horses! 🏆 Think you can beat me?\n${url}`
+      ? gameMode === 'ai'
+        ? `I just beat the AI on ${difficulty.toUpperCase()} in Run Horses! 🏆 Think you can beat me?\n${url}`
+        : `I just claimed the Oasis in Run Horses! 🏆 Think you can beat me?\n${url}`
       : 'Race your horses to the Oasis — play Run Horses! 3D';
 
     let shareData: ShareData = { title: 'Run Horses!', text, url };
