@@ -43,9 +43,9 @@ function PieceMesh({ row, col, player, isSelected }: PieceProps) {
   });
 
   const isWhite = player === 'white';
-  const color    = isWhite ? '#4499ff' : '#ff9922';
+  const color    = isWhite ? '#3388ff' : '#ff8811';
   const emissive = isWhite ? '#2266ff' : '#ff7700';
-  const emissiveIntensity = isSelected ? 1.4 : 0.45;
+  const emissiveIntensity = isSelected ? 1.1 : 0.22;
 
   // Shared material props — knight faces the +x axis so the head profile
   // reads clearly from the default camera angle.
