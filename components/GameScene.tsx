@@ -188,7 +188,7 @@ export default function GameScene() {
   const lastClickMs = useRef(0);
   const handleCellClick = (row: number, col: number) => {
     const now = Date.now();
-    if (now - lastClickMs.current < 200) return; // debounce double-fires on mobile
+    if (now - lastClickMs.current < 40) return; // debounce double-fires on mobile
     lastClickMs.current = now;
     if (aiThinking || (gameMode === 'ai' && gameState.currentTurn === 'black')) return;
     setGameState(prev => selectCell(prev, row, col));
