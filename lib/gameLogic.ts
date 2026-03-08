@@ -1,7 +1,7 @@
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type Terrain = 'oasis' | 'garden' | 'desert';
 export type Player = 'white' | 'black';
-export type GameMode = 'pvp' | 'ai';
+export type GameMode = 'pvp' | 'ai' | 'online';
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'impossible';
 
 export interface Piece {

@@ -159,6 +159,11 @@ interface HUDProps {
   onReset: () => void;
   onChangeMode: () => void;
   onSelectMode: (mode: GameMode, diff?: Difficulty) => void;
+  roomId?: string | null;
+  myColor?: Player | null;
+  opponentConnected?: boolean;
+  onCreateRoom?: () => void;
+  onJoinRoom?: (roomId: string) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -173,6 +178,11 @@ export default function HUD({
   onReset,
   onChangeMode,
   onSelectMode,
+  roomId,
+  myColor,
+  opponentConnected,
+  onCreateRoom,
+  onJoinRoom,
 }: HUDProps) {
   const { currentTurn, selectedCell } = gameState;
 
@@ -182,6 +192,7 @@ export default function HUD({
 
   const hasSel = selectedCell !== null;
   const jumpAllowed = hasSel && canLJump(selectedCell![0], selectedCell![1]);
+  const isOnlineWaiting = gameMode === "online" && myColor !== currentTurn;
 
   const abilityText = hasSel
     ? jumpAllowed
@@ -189,7 +200,9 @@ export default function HUD({
       : "SLIDE ONLY"
     : aiThinking
       ? "PROCESSING..."
-      : "SELECT A PIECE";
+      : isOnlineWaiting
+        ? "OPPONENT'S TURN..."
+        : "SELECT A PIECE";
 
   const abilityColor = hasSel
     ? jumpAllowed
@@ -197,7 +210,9 @@ export default function HUD({
       : "#70c0ff"
     : aiThinking
       ? "#ff6666"
-      : "#444466";
+      : isOnlineWaiting
+        ? "#ff8800"
+        : "#444466";
 
   const coordLabel = selectedCell
     ? `${rowLabel(selectedCell[0])}${colLabel(selectedCell[1])}`
@@ -304,14 +319,22 @@ export default function HUD({
   // Human-readable turn label
   const isAITurn = gameMode === "ai" && currentTurn === "black";
   const turnLabel =
-    gameMode === "ai"
-      ? currentTurn === "white"
-        ? "○ YOU (BLUE)"
-        : "● AI (ORANGE)"
-      : currentTurn === "white"
-        ? "○ BLUE"
-        : "● ORANGE";
+    gameMode === "online"
+      ? myColor === currentTurn
+        ? "YOUR TURN"
+        : "OPPONENT'S TURN"
+      : gameMode === "ai"
+        ? currentTurn === "white"
+          ? "○ YOU (BLUE)"
+          : "● AI (ORANGE)"
+        : currentTurn === "white"
+          ? "○ BLUE"
+          : "● ORANGE";
   const turnColor = currentTurn === "white" ? "#2277ff" : "#ff8800";
+
+  // Online room code input state
+  const [joinCode, setJoinCode] = useState('');
+  const [roomCopied, setRoomCopied] = useState(false);
 
   return (
     <>
@@ -371,7 +394,7 @@ export default function HUD({
                   marginTop: 2,
                 }}
               >
-                {gameMode === "ai" ? "SINGLE PLAYER" : "TWO PLAYERS"}
+                {gameMode === "online" ? "ONLINE" : gameMode === "ai" ? "SINGLE PLAYER" : "TWO PLAYERS"}
               </div>
             )}
           </div>
@@ -540,6 +563,27 @@ export default function HUD({
             Tap highlighted tile → move
             <br />
             Drag → orbit camera
+          </div>
+        </div>
+      )}
+
+      {/* ── Online: opponent's turn indicator ────────────────────────────── */}
+      {isOnlineWaiting && opponentConnected && !winner && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 20,
+            right: 20,
+            pointerEvents: "none",
+            zIndex: 10,
+            textAlign: "right",
+          }}
+        >
+          <div
+            className="ai-blink"
+            style={{ color: "#ff8800", fontSize: 11, letterSpacing: "2px" }}
+          >
+            OPPONENT&apos;S TURN
           </div>
         </div>
       )}
@@ -852,6 +896,101 @@ export default function HUD({
                 First to Oasis wins.
               </div>
             </button>
+
+            {/* Online card */}
+            <div
+              style={{
+                background: "rgba(4,4,14,0.92)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                borderRadius: 12,
+                padding: isMobile ? "18px 20px" : "24px 28px",
+                textAlign: "center",
+                width: isMobile ? "100%" : undefined,
+                minWidth: isMobile ? undefined : 170,
+                alignSelf: "stretch",
+              }}
+            >
+              <div
+                style={{
+                  color: "#ffffff",
+                  fontSize: 13,
+                  fontWeight: 800,
+                  letterSpacing: 2,
+                  marginBottom: 14,
+                }}
+              >
+                ONLINE
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <button
+                  onClick={onCreateRoom}
+                  style={{
+                    background: "#00ffcc11",
+                    border: "1.5px solid #00ffcc55",
+                    color: "#00ffcc",
+                    borderRadius: 7,
+                    padding: "10px 14px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    letterSpacing: 2,
+                    transition: "background 0.15s, border-color 0.15s",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "#00ffcc28";
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "#00ffcc";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "#00ffcc11";
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = "#00ffcc55";
+                  }}
+                >
+                  CREATE ROOM
+                </button>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
+                    placeholder="Room code"
+                    maxLength={8}
+                    style={{
+                      flex: 1,
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      borderRadius: 6,
+                      color: "#ffffff",
+                      fontFamily: "inherit",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: 2,
+                      padding: "8px 10px",
+                      textAlign: "center",
+                      outline: "none",
+                      width: 0,
+                      minWidth: 0,
+                    }}
+                  />
+                  <button
+                    onClick={() => joinCode.length >= 4 && onJoinRoom?.(joinCode)}
+                    style={{
+                      background: joinCode.length >= 4 ? "#aa44ff18" : "transparent",
+                      border: `1.5px solid ${joinCode.length >= 4 ? "#aa44ff" : "#44445a"}`,
+                      color: joinCode.length >= 4 ? "#aa44ff" : "#44445a",
+                      borderRadius: 6,
+                      padding: "8px 12px",
+                      cursor: joinCode.length >= 4 ? "pointer" : "default",
+                      fontFamily: "inherit",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: 1,
+                    }}
+                  >
+                    JOIN
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Share */}
@@ -875,6 +1014,103 @@ export default function HUD({
           >
             {copied ? "LINK COPIED!" : "SHARE WITH FRIENDS"}
           </button>
+        </div>
+      )}
+
+      {/* ── Online: waiting for opponent lobby ─────────────────────────── */}
+      {gameMode === "online" && !opponentConnected && roomId && (
+        <div
+          className="mode-fade"
+          style={{
+            position: "fixed",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(4,4,14,0.85)",
+            backdropFilter: "blur(6px)",
+            zIndex: 60,
+          }}
+        >
+          <div style={{
+            color: "#ffffff",
+            fontSize: isMobile ? 18 : 24,
+            fontWeight: 900,
+            letterSpacing: 3,
+            marginBottom: 20,
+          }}>
+            WAITING FOR OPPONENT
+          </div>
+          <div style={{
+            color: "#555577",
+            fontSize: 10,
+            letterSpacing: 4,
+            marginBottom: 10,
+          }}>
+            SHARE THIS CODE
+          </div>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: 8,
+          }}>
+            <div style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1.5px solid #00ffcc55",
+              borderRadius: 10,
+              padding: "14px 28px",
+              color: "#00ffcc",
+              fontSize: isMobile ? 24 : 32,
+              fontWeight: 900,
+              letterSpacing: 6,
+              fontFamily: "inherit",
+            }}>
+              {roomId.toUpperCase()}
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(roomId);
+              setRoomCopied(true);
+              setTimeout(() => setRoomCopied(false), 2000);
+            }}
+            style={{
+              background: "transparent",
+              border: `1.5px solid ${roomCopied ? "#00ffcc" : "rgba(255,255,255,0.18)"}`,
+              color: roomCopied ? "#00ffcc" : "#666688",
+              borderRadius: 6,
+              padding: "8px 20px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 2,
+              marginBottom: 24,
+              transition: "color 0.2s, border-color 0.2s",
+            }}
+          >
+            {roomCopied ? "COPIED!" : "COPY CODE"}
+          </button>
+          <div className="ai-blink" style={{
+            color: "#555577",
+            fontSize: 11,
+            letterSpacing: 2,
+            marginBottom: 28,
+          }}>
+            Waiting...
+          </div>
+          <div style={{
+            color: "#444466",
+            fontSize: 10,
+            marginBottom: 20,
+          }}>
+            You are playing as {myColor === "white" ? "BLUE" : myColor === "black" ? "ORANGE" : "..."}
+          </div>
+          <GhostButton onClick={onChangeMode} color="#555577" small>
+            CANCEL
+          </GhostButton>
         </div>
       )}
 

@@ -16,6 +16,7 @@ import {
 } from '@/lib/gameLogic';
 import { track } from '@vercel/analytics';
 import { playSelect, playMove, playLand, playWin } from '@/lib/sounds';
+import { usePartyRoom } from '@/lib/usePartyRoom';
 import { gridToWorld } from './Board';
 import Board from './Board';
 import Pieces from './Pieces';
@@ -161,6 +162,8 @@ export default function GameScene() {
   const [displayWinner, setDisplayWinner] = useState<Player | null>(null);
   const [streak, setStreak]         = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
+  const [roomId, setRoomId]         = useState<string | null>(null);
+  const party = usePartyRoom(gameMode === 'online' ? roomId : null);
 
   // Load streak from localStorage on mount
   useEffect(() => {
@@ -169,6 +172,13 @@ export default function GameScene() {
     setStreak(s);
     setBestStreak(b);
   }, []);
+
+  // ── Sync state from PartyKit server in online mode ─────────────────────────
+  useEffect(() => {
+    if (gameMode === 'online' && party.gameState) {
+      setGameState(party.gameState);
+    }
+  }, [gameMode, party.gameState]);
 
   const [cameraProps] = useState(() => {
     const mobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -248,6 +258,25 @@ export default function GameScene() {
     lastClickMs.current = now;
     if (aiThinking || (gameMode === 'ai' && gameState.currentTurn === 'black')) return;
 
+    // ── Online mode: send moves to server, handle selection locally ──────
+    if (gameMode === 'online') {
+      if (party.myColor !== gameState.currentTurn) return; // not your turn
+      if (gameState.selectedCell) {
+        const isValid = gameState.validMoves.some(([r, c]) => r === row && c === col);
+        if (isValid) {
+          party.sendMove(gameState.selectedCell[0], gameState.selectedCell[1], row, col);
+          playMove();
+          window.setTimeout(playLand, 380);
+          return;
+        }
+      }
+      // Local selection only
+      const next = selectCell(gameState, row, col);
+      if (next.selectedCell !== null) playSelect();
+      setGameState(prev => selectCell(prev, row, col));
+      return;
+    }
+
     // Preview result to pick the right sound
     const next = selectCell(gameState, row, col);
     if (next.currentTurn !== gameState.currentTurn || next.winner !== null) {
@@ -262,6 +291,10 @@ export default function GameScene() {
 
   // ── Game controls ─────────────────────────────────────────────────────────────
   const handleReset = () => {
+    if (gameMode === 'online') {
+      party.sendReset();
+      return;
+    }
     setAiThinking(false);
     setGameState(createInitialState());
   };
@@ -269,6 +302,7 @@ export default function GameScene() {
   const handleChangeMode = () => {
     setAiThinking(false);
     setGameState(createInitialState());
+    setRoomId(null);
     setGameMode(null);
   };
 
@@ -278,6 +312,21 @@ export default function GameScene() {
     setGameState(createInitialState());
     setGameMode(mode);
     track('game_started', { mode, difficulty: mode === 'ai' ? d : 'pvp' });
+  };
+
+  const handleCreateRoom = () => {
+    const id = Math.random().toString(36).substring(2, 8);
+    setRoomId(id);
+    setGameState(createInitialState());
+    setGameMode('online');
+    track('game_started', { mode: 'online', difficulty: 'pvp' });
+  };
+
+  const handleJoinRoom = (id: string) => {
+    setRoomId(id);
+    setGameState(createInitialState());
+    setGameMode('online');
+    track('game_started', { mode: 'online', difficulty: 'pvp' });
   };
 
   return (
@@ -350,6 +399,11 @@ export default function GameScene() {
         onReset={handleReset}
         onChangeMode={handleChangeMode}
         onSelectMode={handleSelectMode}
+        roomId={roomId}
+        myColor={party.myColor}
+        opponentConnected={party.opponentConnected}
+        onCreateRoom={handleCreateRoom}
+        onJoinRoom={handleJoinRoom}
       />
     </div>
   );
