@@ -21,7 +21,7 @@ function PieceMesh({ row, col, player, isSelected }: PieceProps) {
   useFrame(({ clock }) => {
     if (!groupRef.current) return;
     const target = gridToWorld(row, col);
-    const bob = isSelected ? 0.18 * Math.sin(clock.elapsedTime * 4) : 0;
+    const bob = isSelected ? 0.18 * Math.abs(Math.sin(clock.elapsedTime * 4)) : 0;
 
     if (!animXZ.current) {
       animXZ.current = { x: target.x, z: target.z };
