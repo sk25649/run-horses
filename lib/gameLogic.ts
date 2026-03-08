@@ -341,13 +341,18 @@ function evaluateImpossible(state: GameState): number {
  * Quiescence search — extends 2 extra plies in "hot" positions (pieces on
  * oasis row/col), preventing the horizon effect near win threats.
  */
+interface SearchBudget { nodes: number; limit: number }
+
 function quiescence(
   state: GameState,
   alpha: number,
   beta: number,
   depth: number,
+  budget: SearchBudget,
 ): number {
+  budget.nodes++;
   if (state.winner !== null) return evaluateImpossible(state);
+  if (budget.nodes >= budget.limit) return evaluateImpossible(state);
 
   const standPat = evaluateImpossible(state);
   if (depth <= 0) return standPat;
@@ -362,7 +367,7 @@ function quiescence(
     if (best >= beta) return best;
     alpha = Math.max(alpha, best);
     for (const m of hot) {
-      const val = quiescence(applyMove(state, m.fromRow, m.fromCol, m.toRow, m.toCol), alpha, beta, depth - 1);
+      const val = quiescence(applyMove(state, m.fromRow, m.fromCol, m.toRow, m.toCol), alpha, beta, depth - 1, budget);
       if (val > best) best = val;
       if (val > alpha) alpha = val;
       if (beta <= alpha) break;
@@ -373,7 +378,7 @@ function quiescence(
     if (best <= alpha) return best;
     beta = Math.min(beta, best);
     for (const m of hot) {
-      const val = quiescence(applyMove(state, m.fromRow, m.fromCol, m.toRow, m.toCol), alpha, beta, depth - 1);
+      const val = quiescence(applyMove(state, m.fromRow, m.fromCol, m.toRow, m.toCol), alpha, beta, depth - 1, budget);
       if (val < best) best = val;
       if (val < beta) beta = val;
       if (beta <= alpha) break;
@@ -387,9 +392,12 @@ function minimaxImpossible(
   depth: number,
   alpha: number,
   beta: number,
+  budget: SearchBudget,
 ): number {
+  budget.nodes++;
   if (state.winner !== null) return evaluateImpossible(state);
-  if (depth === 0) return quiescence(state, alpha, beta, 2);
+  if (budget.nodes >= budget.limit) return evaluateImpossible(state);
+  if (depth === 0) return quiescence(state, alpha, beta, 2, budget);
 
   const moves = getAllMovesForState(state);
   if (moves.length === 0) return evaluateImpossible(state);
@@ -407,7 +415,7 @@ function minimaxImpossible(
   if (state.currentTurn === 'black') {
     let best = -Infinity;
     for (const m of moves) {
-      const val = minimaxImpossible(applyMove(state, m.fromRow, m.fromCol, m.toRow, m.toCol), depth - 1, alpha, beta);
+      const val = minimaxImpossible(applyMove(state, m.fromRow, m.fromCol, m.toRow, m.toCol), depth - 1, alpha, beta, budget);
       if (val > best) best = val;
       if (val > alpha) alpha = val;
       if (beta <= alpha) break;
@@ -416,7 +424,7 @@ function minimaxImpossible(
   } else {
     let best = Infinity;
     for (const m of moves) {
-      const val = minimaxImpossible(applyMove(state, m.fromRow, m.fromCol, m.toRow, m.toCol), depth - 1, alpha, beta);
+      const val = minimaxImpossible(applyMove(state, m.fromRow, m.fromCol, m.toRow, m.toCol), depth - 1, alpha, beta, budget);
       if (val < best) best = val;
       if (val < beta) beta = val;
       if (beta <= alpha) break;
@@ -442,12 +450,13 @@ export function getBestAIMove(state: GameState, difficulty: Difficulty = 'medium
   if (winMove) return { fromRow: winMove.fromRow, fromCol: winMove.fromCol, toRow: winMove.toRow, toCol: winMove.toCol };
 
   if (difficulty === 'impossible') {
+    const budget: SearchBudget = { nodes: 0, limit: 200_000 };
     let bestMove: MoveCandidate | null = null;
     let bestVal = -Infinity;
     for (const move of moves) {
       const val = minimaxImpossible(
         applyMove(state, move.fromRow, move.fromCol, move.toRow, move.toCol),
-        5, -Infinity, Infinity, // 6-ply total (1 here + 5 recursive)
+        5, -Infinity, Infinity, budget, // 6-ply total (1 here + 5 recursive)
       );
       if (val > bestVal) { bestVal = val; bestMove = move; }
     }
