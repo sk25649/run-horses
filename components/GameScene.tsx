@@ -18,7 +18,7 @@ import {
   colLabel,
 } from '@/lib/gameLogic';
 import { track } from '@vercel/analytics';
-import { playSelect, playMove, playLand, playWin, setMuted, isMuted } from '@/lib/sounds';
+import { playSelect, playMove, playLand, playWin, playGameStart, setMuted, isMuted } from '@/lib/sounds';
 import { gridToWorld } from './Board';
 import Board from './Board';
 import Pieces from './Pieces';
@@ -316,6 +316,13 @@ export default function GameScene() {
     }, 1400);
     return () => window.clearTimeout(id);
   }, [gameState.winner, gameMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Online game start sound ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (gameMode === 'online' && partyGame.status === 'playing') {
+      playGameStart();
+    }
+  }, [gameMode, partyGame.status]);
 
   // ── Win detection — online mode ───────────────────────────────────────────────
   useEffect(() => {

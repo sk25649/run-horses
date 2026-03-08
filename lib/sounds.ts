@@ -66,6 +66,24 @@ export function playLand() {
   osc.start(); osc.stop(ac.currentTime + 0.22);
 }
 
+// Two-note "ready" chime when online game starts
+export function playGameStart() {
+  if (_muted) return;
+  const ac = ctx(); if (!ac) return;
+  [440, 660].forEach((freq, i) => {
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const t = ac.currentTime + i * 0.18;
+    gain.gain.setValueAtTime(0.001, t);
+    gain.gain.linearRampToValueAtTime(0.2, t + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    osc.start(t); osc.stop(t + 0.4);
+  });
+}
+
 // Ascending chime on win
 export function playWin() {
   if (_muted) return;
