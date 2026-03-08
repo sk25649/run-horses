@@ -1214,10 +1214,19 @@ export default function HUD({
                   {link}
                 </span>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(link).catch(() => {});
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
+                  onClick={async () => {
+                    const shareData = {
+                      title: "Run Horses! — Online Challenge",
+                      text: "I challenge you to a real-time match of Run Horses! 3D. Click to join!",
+                      url: link,
+                    };
+                    if (typeof navigator.share === "function" && navigator.canShare?.(shareData)) {
+                      await navigator.share(shareData).catch(() => {});
+                    } else {
+                      navigator.clipboard.writeText(link).catch(() => {});
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }
                   }}
                   style={{
                     background: copied ? "#00ffcc22" : "transparent",
@@ -1234,7 +1243,7 @@ export default function HUD({
                     transition: "all 0.15s",
                   }}
                 >
-                  {copied ? "COPIED!" : "COPY"}
+                  {copied ? "COPIED!" : "SHARE"}
                 </button>
               </div>
             );
