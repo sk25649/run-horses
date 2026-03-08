@@ -159,6 +159,16 @@ export default function GameScene() {
   const [aiThinking, setAiThinking] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [displayWinner, setDisplayWinner] = useState<Player | null>(null);
+  const [streak, setStreak]         = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
+
+  // Load streak from localStorage on mount
+  useEffect(() => {
+    const s = parseInt(localStorage.getItem('rh_streak') || '0');
+    const b = parseInt(localStorage.getItem('rh_best') || '0');
+    setStreak(s);
+    setBestStreak(b);
+  }, []);
 
   const [cameraProps] = useState(() => {
     const mobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -175,6 +185,21 @@ export default function GameScene() {
       setDisplayWinner(gameState.winner);
       playWin();
       track('game_won', { winner: gameState.winner!, mode: gameMode ?? 'pvp', difficulty });
+
+      // Update streak (AI mode only — player = white)
+      if (gameMode === 'ai') {
+        if (gameState.winner === 'white') {
+          const next = streak + 1;
+          const best = Math.max(next, bestStreak);
+          setStreak(next);
+          setBestStreak(best);
+          localStorage.setItem('rh_streak', String(next));
+          localStorage.setItem('rh_best', String(best));
+        } else {
+          setStreak(0);
+          localStorage.setItem('rh_streak', '0');
+        }
+      }
     }, 1400);
     return () => window.clearTimeout(id);
   }, [gameState.winner]);
@@ -320,6 +345,8 @@ export default function GameScene() {
         aiThinking={aiThinking}
         difficulty={difficulty}
         winner={displayWinner}
+        streak={streak}
+        bestStreak={bestStreak}
         onReset={handleReset}
         onChangeMode={handleChangeMode}
         onSelectMode={handleSelectMode}

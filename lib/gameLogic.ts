@@ -17,6 +17,7 @@ export interface GameState {
   selectedCell: [number, number] | null;
   validMoves: [number, number][];
   winner: Player | null;
+  moveCount: number;
 }
 
 export interface AIMove {
@@ -83,7 +84,7 @@ export function createInitialState(): GameState {
   ];
   blackCells.forEach(([r, c], i) => { board[r][c] = { player: 'black', id: `b${i + 1}` }; });
 
-  return { board, currentTurn: 'white', selectedCell: null, validMoves: [], winner: null };
+  return { board, currentTurn: 'white', selectedCell: null, validMoves: [], winner: null, moveCount: 0 };
 }
 
 // ─── Movement ────────────────────────────────────────────────────────────────
@@ -157,6 +158,7 @@ export function applyMove(
     selectedCell: null,
     validMoves: [],
     winner,
+    moveCount: state.moveCount + 1,
   };
 }
 

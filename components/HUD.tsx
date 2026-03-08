@@ -154,6 +154,8 @@ interface HUDProps {
   aiThinking: boolean;
   difficulty: Difficulty;
   winner: Player | null;
+  streak: number;
+  bestStreak: number;
   onReset: () => void;
   onChangeMode: () => void;
   onSelectMode: (mode: GameMode, diff?: Difficulty) => void;
@@ -166,6 +168,8 @@ export default function HUD({
   aiThinking,
   difficulty,
   winner,
+  streak,
+  bestStreak,
   onReset,
   onChangeMode,
   onSelectMode,
@@ -211,10 +215,11 @@ export default function HUD({
   const handleShare = async (context: 'home' | 'win' = 'home') => {
     const url = window.location.href;
     const isWin = context === 'win';
+    const streakSuffix = gameMode === 'ai' && streak > 1 ? ` ${streak}-game streak 🔥` : '';
     const text = isWin
       ? gameMode === 'ai'
-        ? `I just beat the AI on ${difficulty.toUpperCase()} in Run Horses! 🏆 Think you can beat me?\n${url}`
-        : `I just claimed the Oasis in Run Horses! 🏆 Think you can beat me?\n${url}`
+        ? `I beat the AI on ${difficulty.toUpperCase()} in ${gameState.moveCount} moves!${streakSuffix} Think you can beat me? 🏆\n${url}`
+        : `I claimed the Oasis in ${gameState.moveCount} moves in Run Horses! 🏆 Think you can beat me?\n${url}`
       : 'Race your horses to the Oasis — play Run Horses! 3D';
 
     let shareData: ShareData = { title: 'Run Horses!', text, url };
@@ -370,7 +375,7 @@ export default function HUD({
             <div style={{ ...panel, minWidth: 80 }}>
               <div style={lbl}>MOVES</div>
               <div style={{ ...val, color: "#00ffcc" }}>
-                {gameState.validMoves.length || "—"}
+                {gameState.moveCount || "—"}
               </div>
             </div>
           )}
@@ -843,6 +848,32 @@ export default function HUD({
             }}
           >
             CONGRATS! YOU WON!
+          </div>
+
+          {/* Move count + streak */}
+          <div style={{ display: "flex", gap: isMobile ? 16 : 28, marginBottom: 32, flexWrap: "wrap", justifyContent: "center" }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ ...lbl, fontSize: 9 }}>MOVES TAKEN</div>
+              <div style={{ fontSize: isMobile ? 28 : 40, fontWeight: 900, color: "#00ffcc", letterSpacing: 2 }}>
+                {gameState.moveCount}
+              </div>
+            </div>
+            {gameMode === "ai" && winner === "white" && streak > 0 && (
+              <div style={{ textAlign: "center" }}>
+                <div style={{ ...lbl, fontSize: 9 }}>WIN STREAK</div>
+                <div style={{ fontSize: isMobile ? 28 : 40, fontWeight: 900, color: "#f5c842", letterSpacing: 2 }}>
+                  {streak}🔥
+                </div>
+              </div>
+            )}
+            {gameMode === "ai" && winner === "white" && bestStreak > 1 && (
+              <div style={{ textAlign: "center" }}>
+                <div style={{ ...lbl, fontSize: 9 }}>BEST STREAK</div>
+                <div style={{ fontSize: isMobile ? 20 : 28, fontWeight: 700, color: "#888899", letterSpacing: 2 }}>
+                  {bestStreak}
+                </div>
+              </div>
+            )}
           </div>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
