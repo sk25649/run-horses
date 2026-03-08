@@ -122,6 +122,7 @@ function GhostButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       style={{
         background: "transparent",
@@ -1546,6 +1547,42 @@ export default function HUD({
 
           <GhostButton onClick={onChangeMode} color="#555577" small>
             CANCEL
+          </GhostButton>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          ONLINE — ROOM FULL OVERLAY
+      ═════════════════════════════════════════════════════════════════════ */}
+      {gameMode === "online" && onlineStatus === "room_full" && !winner && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(4,4,14,0.88)",
+            backdropFilter: "blur(6px)",
+            zIndex: 55,
+          }}
+        >
+          <div style={{
+            fontSize: isMobile ? 22 : 36,
+            fontWeight: 900,
+            color: "#ff4466",
+            letterSpacing: 2,
+            marginBottom: 12,
+            textAlign: "center",
+          }}>
+            ROOM IS FULL
+          </div>
+          <div style={{ color: "#666688", fontSize: 13, letterSpacing: 2, marginBottom: 32, textAlign: "center" }}>
+            This game already has two players.
+          </div>
+          <GhostButton onClick={onChangeMode} color="#555577" small>
+            BACK TO MENU
           </GhostButton>
         </div>
       )}

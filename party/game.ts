@@ -47,7 +47,8 @@ export default class GameServer implements Party.Server {
       // ── Game in progress: only allow reconnects ──────────────────────────
       const disconnected = this.slots.find((s) => !s.connected);
       if (disconnected) {
-        // Pre-assign disconnected player's color; wait for 'join' to confirm
+        // Update id so onClose can track this connection if player drops before join
+        disconnected.id = conn.id;
         this.send(conn, { type: "assigned", color: disconnected.color });
       } else {
         this.send(conn, { type: "room_full" });
@@ -78,19 +79,15 @@ export default class GameServer implements Party.Server {
     switch (msg.type) {
       case "join": {
         const name = (msg.name as string) || "Anonymous";
-        const existingSlot = this.slots.find((s) => s.id === sender.id);
+        const slot = this.slots.find((s) => s.id === sender.id);
+        if (!slot) return;
 
-        if (!existingSlot) {
-          // Only valid during an in-progress game reconnect
-          if (!this.gameStarted) return;
-          const disconnected = this.slots.find((s) => !s.connected);
-          if (!disconnected) return;
-
-          disconnected.id = sender.id;
-          disconnected.name = name;
-          disconnected.connected = true;
-
-          this.send(sender, { type: "assigned", color: disconnected.color });
+        if (!slot.connected) {
+          // Reconnect path — id was updated in onConnect, but connected is still false.
+          // Pre-game disconnects remove the slot entirely, so this path is always an
+          // in-progress reconnect.
+          slot.name = name;
+          slot.connected = true;
           this.send(sender, {
             type: "start",
             players: this.slots.map((s) => ({ name: s.name, color: s.color })),
@@ -100,8 +97,9 @@ export default class GameServer implements Party.Server {
           break;
         }
 
-        existingSlot.name = name;
-        existingSlot.joined = true;
+        // Normal join
+        slot.name = name;
+        slot.joined = true;
 
         const bothReady = this.slots.length === 2 && this.slots.every((s) => s.joined);
         if (bothReady && !this.gameStarted) {
@@ -112,7 +110,9 @@ export default class GameServer implements Party.Server {
             players: this.slots.map((s) => ({ name: s.name, color: s.color })),
             gameState: this.gameState,
           });
-        } else {
+        } else if (!this.gameStarted) {
+          // Not both ready yet — tell this player to wait.
+          // If gameStarted is already true (duplicate join race), silently ignore.
           this.send(sender, { type: "waiting" });
         }
         break;

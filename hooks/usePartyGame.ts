@@ -5,7 +5,7 @@ import PartySocket from "partysocket";
 import { createInitialState } from "@/lib/gameLogic";
 import type { GameState, Player } from "@/lib/gameLogic";
 
-export type OnlineStatus = "connecting" | "name_required" | "waiting" | "playing" | "opponent_left";
+export type OnlineStatus = "connecting" | "name_required" | "waiting" | "playing" | "opponent_left" | "room_full";
 
 export interface OnlinePlayer {
   name: string;
@@ -92,6 +92,9 @@ export function usePartyGame(roomId: string | null): UsePartyGameResult {
           break;
         case "opponent_left":
           setStatus("opponent_left");
+          break;
+        case "room_full":
+          setStatus("room_full");
           break;
         case "opponent_rejoined":
           setStatus("playing");
