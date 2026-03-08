@@ -212,7 +212,7 @@ export default function HUD({
     const url = window.location.href;
     const isWin = context === 'win';
     const text = isWin
-      ? `I just claimed the Oasis in Run Horses! 🏆 Think you can beat me?`
+      ? `I just claimed the Oasis in Run Horses! 🏆 Think you can beat me?\n${url}`
       : 'Race your horses to the Oasis — play Run Horses! 3D';
 
     let shareData: ShareData = { title: 'Run Horses!', text, url };
@@ -840,7 +840,7 @@ export default function HUD({
               textAlign: "center",
             }}
           >
-            ◈ f6 REACHED
+            CONGRATS! YOU WON!
           </div>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
