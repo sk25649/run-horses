@@ -14,14 +14,17 @@ import {
   applyMove,
   getValidMoves,
   getBestAIMove,
+  rowLabel,
+  colLabel,
 } from '@/lib/gameLogic';
 import { track } from '@vercel/analytics';
-import { playSelect, playMove, playLand, playWin } from '@/lib/sounds';
+import { playSelect, playMove, playLand, playWin, setMuted, isMuted } from '@/lib/sounds';
 import { gridToWorld } from './Board';
 import Board from './Board';
 import Pieces from './Pieces';
 import HUD from './HUD';
 import { usePartyGame } from '@/hooks/usePartyGame';
+import type { LastMove } from '@/hooks/usePartyGame';
 
 // ─── Mobile tap handler ───────────────────────────────────────────────────────
 const TILE_GAP = 1.05;
@@ -100,6 +103,50 @@ function MobileTapHandler({ onCellClick }: { onCellClick: (r: number, c: number)
   return null;
 }
 
+// ─── Camera snap controller ───────────────────────────────────────────────────
+type CameraPreset = 'default' | 'top' | 'side';
+
+const CAMERA_PRESETS: Record<CameraPreset, { pos: [number, number, number]; target: [number, number, number] }> = {
+  default: { pos: [0, 15, 11], target: [0, 0, 0] },
+  top:     { pos: [0, 22, 0.01], target: [0, 0, 0] },
+  side:    { pos: [14, 8, 0], target: [0, 0, 0] },
+};
+
+function CameraController({
+  preset,
+  orbitRef,
+  onDone,
+}: {
+  preset: CameraPreset | null;
+  orbitRef: React.MutableRefObject<any>;
+  onDone: () => void;
+}) {
+  const { camera } = useThree();
+  const targetPos = useRef<THREE.Vector3 | null>(null);
+  const animRef = useRef(false);
+
+  useEffect(() => {
+    if (!preset) return;
+    const p = CAMERA_PRESETS[preset];
+    targetPos.current = new THREE.Vector3(...p.pos);
+    animRef.current = true;
+  }, [preset]);
+
+  useFrame(() => {
+    if (!animRef.current || !targetPos.current) return;
+    camera.position.lerp(targetPos.current, 0.12);
+    if (orbitRef.current) orbitRef.current.update();
+    if (camera.position.distanceTo(targetPos.current) < 0.05) {
+      camera.position.copy(targetPos.current);
+      animRef.current = false;
+      targetPos.current = null;
+      onDone();
+    }
+  });
+
+  return null;
+}
+
 // ─── Animated oasis point light ───────────────────────────────────────────────
 function OasisLight() {
   const ref = useRef<THREE.PointLight>(null!);
@@ -149,6 +196,14 @@ function Stars() {
   );
 }
 
+// ─── Move history record ──────────────────────────────────────────────────────
+export interface MoveRecord {
+  player: Player;
+  from: string;
+  to: string;
+  moveNum: number;
+}
+
 // ─── Main scene ────────────────────────────────────────────────────────────────
 export default function GameScene() {
   const [gameMode, setGameMode]     = useState<GameMode | null>(null);
@@ -158,6 +213,25 @@ export default function GameScene() {
   const [displayWinner, setDisplayWinner] = useState<Player | null>(null);
   const [streak, setStreak]         = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
+
+  // ── Mute ─────────────────────────────────────────────────────────────────────
+  const [muted, setMutedState] = useState(false);
+  const handleToggleMute = () => {
+    const next = !muted;
+    setMutedState(next);
+    setMuted(next);
+  };
+
+  // ── Last move (for amber board highlights) ────────────────────────────────────
+  const [lastMove, setLastMove] = useState<LastMove | null>(null);
+
+  // ── Move history ─────────────────────────────────────────────────────────────
+  const [moveHistory, setMoveHistory] = useState<MoveRecord[]>([]);
+
+  // ── Camera snap ───────────────────────────────────────────────────────────────
+  const [cameraPreset, setCameraPreset] = useState<CameraPreset | null>(null);
+  const orbitRef = useRef<any>(null);
+  const handleSnapCamera = (preset: CameraPreset) => setCameraPreset(preset);
 
   // ── Online mode state ────────────────────────────────────────────────────────
   const [onlineRoomId, setOnlineRoomId] = useState<string | null>(null);
@@ -173,6 +247,9 @@ export default function GameScene() {
   const activeGameState: GameState = gameMode === 'online'
     ? { ...partyGame.gameState, selectedCell: onlineSelection.selectedCell, validMoves: onlineSelection.validMoves }
     : gameState;
+
+  // Active lastMove (online or local)
+  const activeLastMove = gameMode === 'online' ? partyGame.lastMove : lastMove;
 
   // Reset selection whenever the server broadcasts a new board position
   useEffect(() => {
@@ -190,13 +267,21 @@ export default function GameScene() {
     }
   }, []);
 
-  // Load streak from localStorage on mount
+  // Load streak + mute from localStorage on mount
   useEffect(() => {
     const s = parseInt(localStorage.getItem('rh_streak') || '0');
     const b = parseInt(localStorage.getItem('rh_best') || '0');
     setStreak(s);
     setBestStreak(b);
+    const m = localStorage.getItem('rh_muted') === '1';
+    setMutedState(m);
+    setMuted(m);
   }, []);
+
+  // Persist mute preference
+  useEffect(() => {
+    localStorage.setItem('rh_muted', muted ? '1' : '0');
+  }, [muted]);
 
   const [cameraProps] = useState(() => {
     const mobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -230,7 +315,7 @@ export default function GameScene() {
       }
     }, 1400);
     return () => window.clearTimeout(id);
-  }, [gameState.winner, gameMode]);
+  }, [gameState.winner, gameMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Win detection — online mode ───────────────────────────────────────────────
   useEffect(() => {
@@ -259,15 +344,25 @@ export default function GameScene() {
     const id = window.setTimeout(() => {
       if (cancelled) return;
 
-      let didMove = false;
+      let aiMove: { fromRow: number; fromCol: number; toRow: number; toCol: number } | null = null;
       setGameState(prev => {
         if (prev.currentTurn !== 'black' || prev.winner !== null) return prev;
         const move = getBestAIMove(prev, difficulty);
         if (!move) return prev;
-        didMove = true;
+        aiMove = move;
         return applyMove(prev, move.fromRow, move.fromCol, move.toRow, move.toCol);
       });
-      if (didMove) { playMove(); window.setTimeout(playLand, 380); }
+      if (aiMove) {
+        playMove();
+        window.setTimeout(playLand, 380);
+        setLastMove(aiMove);
+        setMoveHistory(prev => [...prev, {
+          player: 'black',
+          from: `${rowLabel(aiMove!.fromRow)}${colLabel(aiMove!.fromCol)}`,
+          to: `${rowLabel(aiMove!.toRow)}${colLabel(aiMove!.toCol)}`,
+          moveNum: prev.length + 1,
+        }]);
+      }
 
       if (!cancelled) setAiThinking(false);
     }, 1000);
@@ -328,10 +423,22 @@ export default function GameScene() {
     // ── Local modes (pvp / ai) ─────────────────────────────────────────────────
     if (aiThinking || (gameMode === 'ai' && gameState.currentTurn === 'black')) return;
 
+    const prevSelected = gameState.selectedCell;
     const next = selectCell(gameState, row, col);
     if (next.currentTurn !== gameState.currentTurn || next.winner !== null) {
       playMove();
       window.setTimeout(playLand, 380);
+      // Track last move
+      if (prevSelected) {
+        const mv: LastMove = { fromRow: prevSelected[0], fromCol: prevSelected[1], toRow: row, toCol: col };
+        setLastMove(mv);
+        setMoveHistory(prev => [...prev, {
+          player: gameState.currentTurn,
+          from: `${rowLabel(prevSelected[0])}${colLabel(prevSelected[1])}`,
+          to: `${rowLabel(row)}${colLabel(col)}`,
+          moveNum: prev.length + 1,
+        }]);
+      }
     } else if (next.selectedCell !== null) {
       playSelect();
     }
@@ -346,6 +453,8 @@ export default function GameScene() {
       return;
     }
     setAiThinking(false);
+    setLastMove(null);
+    setMoveHistory([]);
     setGameState(createInitialState());
   };
 
@@ -355,6 +464,8 @@ export default function GameScene() {
     setOnlineRoomId(null);
     setOnlineSelection({ selectedCell: null, validMoves: [] });
     setDisplayWinner(null);
+    setLastMove(null);
+    setMoveHistory([]);
     setGameMode(null);
     window.history.replaceState({}, '', '/');
   };
@@ -365,6 +476,8 @@ export default function GameScene() {
       setOnlineRoomId(roomId);
       setGameMode('online');
       setDisplayWinner(null);
+      setLastMove(null);
+      setMoveHistory([]);
       window.history.replaceState({}, '', `/?r=${roomId}`);
       track('game_started', { mode: 'online', difficulty: 'online' });
       return;
@@ -374,6 +487,8 @@ export default function GameScene() {
     setGameState(createInitialState());
     setGameMode(mode);
     setDisplayWinner(null);
+    setLastMove(null);
+    setMoveHistory([]);
     track('game_started', { mode, difficulty: mode === 'ai' ? d : 'pvp' });
   };
 
@@ -413,12 +528,19 @@ export default function GameScene() {
 
         <MobileTapHandler onCellClick={handleCellClick} />
 
+        <CameraController
+          preset={cameraPreset}
+          orbitRef={orbitRef}
+          onDone={() => setCameraPreset(null)}
+        />
+
         <Suspense fallback={null}>
-          <Board gameState={activeGameState} />
+          <Board gameState={activeGameState} lastMove={activeLastMove} />
           <Pieces gameState={activeGameState} />
         </Suspense>
 
         <OrbitControls
+          ref={orbitRef}
           target={[0, 0, 0]}
           minPolarAngle={Math.PI / 8}
           maxPolarAngle={Math.PI / 2.6}
@@ -443,6 +565,13 @@ export default function GameScene() {
         onReset={handleReset}
         onChangeMode={handleChangeMode}
         onSelectMode={handleSelectMode}
+        // Sound
+        muted={muted}
+        onToggleMute={handleToggleMute}
+        // Camera snap
+        onSnapCamera={handleSnapCamera}
+        // Move history
+        moveHistory={moveHistory}
         // Online props
         onlineStatus={gameMode === 'online' ? partyGame.status : null}
         onlineRoomId={onlineRoomId}
@@ -450,6 +579,7 @@ export default function GameScene() {
         onlinePlayers={partyGame.players}
         opponentWantsRematch={partyGame.opponentWantsRematch}
         onSendRematch={partyGame.sendRematch}
+        onSubmitName={partyGame.submitJoin}
       />
     </div>
   );

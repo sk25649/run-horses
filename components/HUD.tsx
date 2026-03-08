@@ -13,6 +13,7 @@ import {
 import type { OnlineStatus, OnlinePlayer } from "@/hooks/usePartyGame";
 import { track } from "@vercel/analytics";
 import { CSSProperties, useState, useEffect, useRef } from "react";
+import type { MoveRecord } from "./GameScene";
 
 // ─── Confetti ─────────────────────────────────────────────────────────────────
 function Confetti() {
@@ -160,6 +161,13 @@ interface HUDProps {
   onReset: () => void;
   onChangeMode: () => void;
   onSelectMode: (mode: GameMode, diff?: Difficulty) => void;
+  // Sound
+  muted: boolean;
+  onToggleMute: () => void;
+  // Camera
+  onSnapCamera: (preset: 'default' | 'top' | 'side') => void;
+  // Move history
+  moveHistory: MoveRecord[];
   // Online mode
   onlineStatus: OnlineStatus | null;
   onlineRoomId: string | null;
@@ -167,6 +175,7 @@ interface HUDProps {
   onlinePlayers: OnlinePlayer[];
   opponentWantsRematch: boolean;
   onSendRematch: () => void;
+  onSubmitName: (name: string) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -181,12 +190,17 @@ export default function HUD({
   onReset,
   onChangeMode,
   onSelectMode,
+  muted,
+  onToggleMute,
+  onSnapCamera,
+  moveHistory,
   onlineStatus,
   onlineRoomId,
   myColor,
   onlinePlayers,
   opponentWantsRematch,
   onSendRematch,
+  onSubmitName,
 }: HUDProps) {
   const { currentTurn, selectedCell } = gameState;
 
@@ -224,6 +238,8 @@ export default function HUD({
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // ── Player name (persisted) ───────────────────────────────────────────────
   const [playerName, setPlayerName] = useState('');
@@ -510,11 +526,56 @@ export default function HUD({
             </div>
           )}
 
+          {/* Opponent name (online only) */}
+          {gameMode === "online" && onlineStatus === "playing" && (() => {
+            const opp = onlinePlayers.find(p => p.color !== myColor);
+            return opp ? (
+              <div style={{ ...panel, flex: "0 0 auto", padding: isMobile ? "7px 12px" : "10px 18px" }}>
+                <div style={{ ...lbl, fontSize: isMobile ? 8 : 9 }}>OPPONENT</div>
+                <div style={{ ...val, fontSize: isMobile ? 11 : 13, color: opp.color === "white" ? "#2277ff" : "#ff8800" }}>
+                  {opp.name.toUpperCase()}
+                </div>
+              </div>
+            ) : null;
+          })()}
+
+          {/* Spacer to push right-side controls to the edge */}
+          <div style={{ flex: 1 }} />
+
+          {/* Mute button */}
+          <button
+            onClick={onToggleMute}
+            style={{
+              flex: "0 0 auto",
+              pointerEvents: "auto",
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 6,
+              color: muted ? "#ff4466" : "#44445a",
+              padding: isMobile ? "7px 10px" : "10px 14px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: isMobile ? 14 : 16,
+              lineHeight: 1,
+              transition: "border-color 0.15s, color 0.15s",
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.3)";
+              (e.currentTarget as HTMLButtonElement).style.color = muted ? "#ff6688" : "#aaaacc";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.12)";
+              (e.currentTarget as HTMLButtonElement).style.color = muted ? "#ff4466" : "#44445a";
+            }}
+            title={muted ? "Unmute" : "Mute"}
+          >
+            {muted ? "🔇" : "🔊"}
+          </button>
+
           {/* Exit button */}
           <button
             onClick={onChangeMode}
             style={{
-              marginLeft: "auto",
               flex: "0 0 auto",
               pointerEvents: "auto",
               background: "transparent",
@@ -612,6 +673,140 @@ export default function HUD({
             <br />
             Drag → orbit camera
           </div>
+        </div>
+      )}
+
+      {/* ── Camera snap buttons ─────────────────────────────────────────── */}
+      {gameMode !== null && !isMobile && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 20,
+            right: 20,
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            zIndex: 10,
+            pointerEvents: "auto",
+          }}
+        >
+          {(["default", "top", "side"] as const).map((preset) => (
+            <button
+              key={preset}
+              onClick={() => onSnapCamera(preset)}
+              style={{
+                background: "rgba(4,4,14,0.75)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 6,
+                color: "#44445a",
+                padding: "5px 10px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: 2,
+                textTransform: "uppercase" as const,
+                transition: "border-color 0.15s, color 0.15s",
+                backdropFilter: "blur(8px)",
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(0,255,204,0.4)";
+                (e.currentTarget as HTMLButtonElement).style.color = "#00ffcc";
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.12)";
+                (e.currentTarget as HTMLButtonElement).style.color = "#44445a";
+              }}
+            >
+              {preset === "default" ? "⌂ DEFAULT" : preset === "top" ? "↓ TOP" : "→ SIDE"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Move history panel ────────────────────────────────────────────── */}
+      {gameMode !== null && moveHistory.length > 0 && !isMobile && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 140,
+            right: 20,
+            zIndex: 10,
+            pointerEvents: "auto",
+          }}
+        >
+          <button
+            onClick={() => setHistoryOpen(o => !o)}
+            style={{
+              width: "100%",
+              background: "rgba(4,4,14,0.75)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: historyOpen ? "6px 6px 0 0" : 6,
+              color: "#666688",
+              padding: "5px 10px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: 9,
+              fontWeight: 700,
+              letterSpacing: 2,
+              textTransform: "uppercase" as const,
+              backdropFilter: "blur(8px)",
+              textAlign: "right" as const,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <span style={{ color: "#444466" }}>{historyOpen ? "▾" : "▸"}</span>
+            <span>MOVES ({moveHistory.length})</span>
+          </button>
+          {historyOpen && (
+            <div
+              style={{
+                background: "rgba(4,4,14,0.88)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderTop: "none",
+                borderRadius: "0 0 6px 6px",
+                backdropFilter: "blur(8px)",
+                maxHeight: 220,
+                overflowY: "auto" as const,
+                padding: "8px 0",
+                width: 140,
+              }}
+            >
+              {[...moveHistory].reverse().map((m) => (
+                <div
+                  key={m.moveNum}
+                  style={{
+                    display: "flex",
+                    gap: 6,
+                    alignItems: "center",
+                    padding: "3px 10px",
+                    fontSize: 10,
+                    color: "#555577",
+                  }}
+                >
+                  <span style={{ color: "#333355", minWidth: 18, textAlign: "right" as const }}>
+                    {m.moveNum}.
+                  </span>
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: m.player === "white" ? "#2277ff" : "#ff8800",
+                      flexShrink: 0,
+                      display: "inline-block",
+                    }}
+                  />
+                  <span style={{ color: "#666688", letterSpacing: 1 }}>
+                    {m.from}→{m.to}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1013,9 +1208,14 @@ export default function HUD({
           {/* ── Win / lose headline ──────────────────────────────────────── */}
           {(() => {
             const playerWon = winner === "white";
+            const localWon = gameMode === "online" ? winner === myColor : playerWon;
             const isChallenge = !!challengeData;
             const beatChallenge = isChallenge && playerWon && gameState.moveCount < challengeData!.moves;
             const tiedChallenge = isChallenge && playerWon && gameState.moveCount === challengeData!.moves;
+
+            const winnerName = gameMode === "online"
+              ? (onlinePlayers.find(p => p.color === winner)?.name ?? (localWon ? "YOU" : "Opponent"))
+              : null;
 
             const headline = isChallenge
               ? playerWon
@@ -1026,9 +1226,9 @@ export default function HUD({
                     : `${challengeData!.name}'s score stands`
                 : `${challengeData!.name}'s challenge stands`
               : gameMode === "online"
-                ? playerWon === (winner === myColor)
-                  ? "YOU claimed the Oasis!"
-                  : `${opponentInfo?.name ?? "Opponent"} claimed the Oasis!`
+                ? localWon
+                  ? `${winnerName} claimed the Oasis!`
+                  : `${winnerName} claimed the Oasis!`
                 : gameMode === "ai"
                   ? playerWon ? "YOU claimed the Oasis!" : "AI claimed the Oasis!"
                   : `${playerWon ? "BLUE" : "ORANGE"} claimed the Oasis!`;
@@ -1042,12 +1242,14 @@ export default function HUD({
                     : `${challengeData!.name}: ${challengeData!.moves} moves  —  You: ${gameState.moveCount} moves`
                 : `${challengeData!.name} set ${challengeData!.moves} moves. Try again!`
               : gameMode === "online"
-                ? winner === myColor ? "CONGRATS! YOU WON!" : "BETTER LUCK NEXT TIME"
+                ? localWon ? "CONGRATS! YOU WON!" : "BETTER LUCK NEXT TIME"
                 : playerWon ? "CONGRATS! YOU WON!" : "BETTER LUCK NEXT TIME";
 
             const headlineColor = isChallenge
               ? beatChallenge ? "#00ffcc" : tiedChallenge ? "#f5c842" : "#ff6666"
-              : playerWon ? "#2277ff" : "#ff8800";
+              : gameMode === "online"
+                ? (winner === "white" ? "#2277ff" : "#ff8800")
+                : playerWon ? "#2277ff" : "#ff8800";
 
             return (
               <>
@@ -1151,6 +1353,95 @@ export default function HUD({
               CHANGE MODE
             </GhostButton>
           </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          ONLINE — NAME ENTRY OVERLAY
+      ═════════════════════════════════════════════════════════════════════ */}
+      {gameMode === "online" && onlineStatus === "name_required" && !winner && (
+        <div
+          className="mode-fade"
+          style={{
+            position: "fixed",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(4,4,14,0.88)",
+            backdropFilter: "blur(6px)",
+            zIndex: 55,
+          }}
+        >
+          <div style={{
+            fontSize: isMobile ? 22 : 32,
+            fontWeight: 900,
+            color: "#ffffff",
+            letterSpacing: 3,
+            marginBottom: 8,
+            textAlign: "center",
+          }}>
+            ENTER YOUR NAME
+          </div>
+          <div style={{ color: "#555577", fontSize: 11, letterSpacing: 3, marginBottom: 28, textAlign: "center" }}>
+            SO YOUR OPPONENT KNOWS WHO THEY FACE
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const name = playerName.trim() || "Anonymous";
+              localStorage.setItem("rh_name", name);
+              onSubmitName(name);
+            }}
+            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}
+          >
+            <input
+              autoFocus
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              placeholder="Anonymous"
+              maxLength={20}
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                border: "1.5px solid rgba(0,255,204,0.35)",
+                borderRadius: 8,
+                color: "#ffffff",
+                fontFamily: "inherit",
+                fontSize: isMobile ? 16 : 20,
+                fontWeight: 700,
+                letterSpacing: 3,
+                padding: "12px 24px",
+                textAlign: "center",
+                outline: "none",
+                width: isMobile ? "75vw" : 280,
+              }}
+            />
+            <GhostButton onClick={() => {
+              const name = playerName.trim() || "Anonymous";
+              localStorage.setItem("rh_name", name);
+              onSubmitName(name);
+            }} color="#00ffcc">
+              JOIN
+            </GhostButton>
+            <button
+              type="button"
+              onClick={onChangeMode}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#444466",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontSize: 10,
+                letterSpacing: 2,
+                marginTop: 4,
+              }}
+            >
+              CANCEL
+            </button>
+          </form>
         </div>
       )}
 

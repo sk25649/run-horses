@@ -1,6 +1,10 @@
 // Synthesised game sounds via Web Audio API — no audio files needed.
 
 let _ctx: AudioContext | null = null;
+let _muted = false;
+
+export function setMuted(v: boolean) { _muted = v; }
+export function isMuted() { return _muted; }
 
 function ctx(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -13,6 +17,7 @@ function ctx(): AudioContext | null {
 
 // Short bright "tick" when a piece is selected
 export function playSelect() {
+  if (_muted) return;
   const ac = ctx(); if (!ac) return;
   const osc = ac.createOscillator();
   const gain = ac.createGain();
@@ -27,6 +32,7 @@ export function playSelect() {
 
 // Soft "whoosh" when a piece starts sliding
 export function playMove() {
+  if (_muted) return;
   const ac = ctx(); if (!ac) return;
   const len = Math.floor(ac.sampleRate * 0.2);
   const buf = ac.createBuffer(1, len, ac.sampleRate);
@@ -47,6 +53,7 @@ export function playMove() {
 
 // Low "thud" when a piece lands
 export function playLand() {
+  if (_muted) return;
   const ac = ctx(); if (!ac) return;
   const osc = ac.createOscillator();
   const gain = ac.createGain();
@@ -61,6 +68,7 @@ export function playLand() {
 
 // Ascending chime on win
 export function playWin() {
+  if (_muted) return;
   const ac = ctx(); if (!ac) return;
   [523, 659, 784, 1047].forEach((freq, i) => {
     const osc = ac.createOscillator();

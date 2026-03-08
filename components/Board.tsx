@@ -15,6 +15,7 @@ import {
 const HIDDEN_MAT  = new THREE.Matrix4().makeTranslation(0, -9999, 0);
 const COL_VALID   = new THREE.Color('#aa00ff');
 const COL_SEL     = new THREE.Color('#00e5ff');
+const COL_LAST    = new THREE.Color('#f5c842');
 
 // ─── World-space helpers ──────────────────────────────────────────────────────
 const TILE_GAP = 1.05;
@@ -43,18 +44,24 @@ function buildTerrainMaps() {
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
+interface LastMove {
+  fromRow: number; fromCol: number; toRow: number; toCol: number;
+}
+
 interface BoardProps {
   gameState: GameState;
+  lastMove?: LastMove | null;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function Board({ gameState }: BoardProps) {
-  const desertRef = useRef<THREE.InstancedMesh>(null!);
-  const gardenRef = useRef<THREE.InstancedMesh>(null!);
-  const oasisRef  = useRef<THREE.InstancedMesh>(null!);
-  const hlRef     = useRef<THREE.InstancedMesh>(null!);  // valid-move highlights
-  const selRef    = useRef<THREE.InstancedMesh>(null!);  // selected-cell
-  const clickRef  = useRef<THREE.InstancedMesh>(null!);  // invisible hit area
+export default function Board({ gameState, lastMove }: BoardProps) {
+  const desertRef  = useRef<THREE.InstancedMesh>(null!);
+  const gardenRef  = useRef<THREE.InstancedMesh>(null!);
+  const oasisRef   = useRef<THREE.InstancedMesh>(null!);
+  const hlRef      = useRef<THREE.InstancedMesh>(null!);  // valid-move highlights
+  const selRef     = useRef<THREE.InstancedMesh>(null!);  // selected-cell
+  const lastMvRef  = useRef<THREE.InstancedMesh>(null!);  // last-move highlights
+  const clickRef   = useRef<THREE.InstancedMesh>(null!);  // invisible hit area
 
   const { desert, garden, all } = useMemo(buildTerrainMaps, []);
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -93,6 +100,11 @@ export default function Board({ gameState }: BoardProps) {
 
     selRef.current.setMatrixAt(0, HIDDEN_MAT);
     selRef.current.instanceMatrix.needsUpdate = true;
+
+    lastMvRef.current.setMatrixAt(0, HIDDEN_MAT);
+    lastMvRef.current.setMatrixAt(1, HIDDEN_MAT);
+    lastMvRef.current.count = 0;
+    lastMvRef.current.instanceMatrix.needsUpdate = true;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Reactive: update highlight overlays on state change ─────────────────────
@@ -128,6 +140,26 @@ export default function Board({ gameState }: BoardProps) {
     if (selRef.current.instanceColor) selRef.current.instanceColor.needsUpdate = true;
   }, [gameState.validMoves, gameState.selectedCell]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Reactive: update last-move highlights ───────────────────────────────────
+  useEffect(() => {
+    if (!lastMvRef.current) return;
+    if (lastMove) {
+      [[lastMove.fromRow, lastMove.fromCol], [lastMove.toRow, lastMove.toCol]].forEach(([r, c], i) => {
+        const p = gridToWorld(r, c);
+        dummy.position.set(p.x, 0.08, p.z);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        lastMvRef.current.setMatrixAt(i, dummy.matrix);
+        lastMvRef.current.setColorAt(i, COL_LAST);
+      });
+      lastMvRef.current.count = 2;
+    } else {
+      lastMvRef.current.count = 0;
+    }
+    lastMvRef.current.instanceMatrix.needsUpdate = true;
+    if (lastMvRef.current.instanceColor) lastMvRef.current.instanceColor.needsUpdate = true;
+  }, [lastMove]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Oasis pulse ─────────────────────────────────────────────────────────────
   useFrame(({ clock }) => {
     const mat = oasisRef.current?.material as THREE.MeshStandardMaterial | undefined;
@@ -162,6 +194,20 @@ export default function Board({ gameState }: BoardProps) {
           emissiveIntensity={0.7}
           roughness={0.15}
           metalness={0.5}
+        />
+      </instancedMesh>
+
+      {/* ── Last-move highlights (2 instances: from + to) ───────────────── */}
+      <instancedMesh ref={lastMvRef} args={[undefined, undefined, 2]}>
+        {hlGeo}
+        <meshStandardMaterial
+          vertexColors
+          transparent
+          opacity={0.35}
+          emissive="#f5c842"
+          emissiveIntensity={0.5}
+          roughness={0.3}
+          depthWrite={false}
         />
       </instancedMesh>
 
