@@ -211,44 +211,93 @@ export default function HUD({
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  // ── Player name (persisted) ───────────────────────────────────────────────
+  const [playerName, setPlayerName] = useState('');
+  useEffect(() => {
+    setPlayerName(localStorage.getItem('rh_name') || '');
+  }, []);
+
+  // ── Challenge banner (loaded from URL ?c=TOKEN) ───────────────────────────
+  const [challengeData, setChallengeData] = useState<{
+    name: string; moves: number; difficulty: string; mode: string;
+  } | null>(null);
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get('c');
+    if (!token) return;
+    setChallengeToken(token);
+    fetch(`/api/challenge?t=${token}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d && setChallengeData(d))
+      .catch(() => {});
+  }, []);
+
+  // ── Share / challenge link ────────────────────────────────────────────────
   const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
+
   const handleShare = async (context: 'home' | 'win' = 'home') => {
-    const url = window.location.href;
-    const isWin = context === 'win';
-    const streakSuffix = gameMode === 'ai' && streak > 1 ? ` ${streak}-game streak 🔥` : '';
-    const text = isWin
-      ? gameMode === 'ai'
-        ? `I beat the AI on ${difficulty.toUpperCase()} in ${gameState.moveCount} moves!${streakSuffix} Think you can beat me? 🏆\n${url}`
-        : `I claimed the Oasis in ${gameState.moveCount} moves in Run Horses! 🏆 Think you can beat me?\n${url}`
-      : 'Race your horses to the Oasis — play Run Horses! 3D';
+    if (sharing) return;
+    setSharing(true);
 
-    let shareData: ShareData = { title: 'Run Horses!', text, url };
+    try {
+      let shareUrl = window.location.origin + '/';
+      const isWin = context === 'win';
 
-    // For win shares, try to attach the 3D canvas as a screenshot
-    if (isWin) {
-      try {
-        const canvas = document.querySelector('canvas');
-        if (canvas) {
-          const blob = await new Promise<Blob | null>(resolve =>
-            (canvas as HTMLCanvasElement).toBlob(resolve, 'image/png')
-          );
-          if (blob) {
-            const file = new File([blob], 'run-horses-win.png', { type: 'image/png' });
-            const withFile = { ...shareData, files: [file] };
-            if (navigator.canShare?.(withFile)) shareData = withFile;
+      // For win shares, create a server-issued challenge token
+      if (isWin) {
+        const name = playerName.trim() || 'Anonymous';
+        localStorage.setItem('rh_name', name);
+        try {
+          const res = await fetch('/api/challenge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, moves: gameState.moveCount, difficulty, mode: gameMode }),
+          });
+          if (res.ok) {
+            const { token } = await res.json();
+            shareUrl = `${window.location.origin}/?c=${token}`;
           }
-        }
-      } catch { /* fall through to text-only share */ }
-    }
+        } catch { /* fall through, share without token */ }
+      }
 
-    const method = (typeof navigator.share === 'function' && navigator.canShare?.(shareData)) ? 'native' : 'clipboard';
-    track('share_clicked', { method, context });
-    if (typeof navigator.share === 'function' && navigator.canShare?.(shareData)) {
-      await navigator.share(shareData);
-    } else {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      const streakSuffix = gameMode === 'ai' && streak > 1 ? ` ${streak}-game streak 🔥` : '';
+      const text = isWin
+        ? gameMode === 'ai'
+          ? `I beat the AI on ${difficulty.toUpperCase()} in ${gameState.moveCount} moves!${streakSuffix} Think you can beat me? 🏆\n${shareUrl}`
+          : `I claimed the Oasis in ${gameState.moveCount} moves! Think you can beat me? 🏆\n${shareUrl}`
+        : `Race your horses to the Oasis — play Run Horses! 3D\n${shareUrl}`;
+
+      let shareData: ShareData = { title: 'Run Horses!', text, url: shareUrl };
+
+      // Attach canvas screenshot for win shares
+      if (isWin) {
+        try {
+          const canvas = document.querySelector('canvas');
+          if (canvas) {
+            const blob = await new Promise<Blob | null>(resolve =>
+              (canvas as HTMLCanvasElement).toBlob(resolve, 'image/png')
+            );
+            if (blob) {
+              const file = new File([blob], 'run-horses-win.png', { type: 'image/png' });
+              const withFile = { ...shareData, files: [file] };
+              if (navigator.canShare?.(withFile)) shareData = withFile;
+            }
+          }
+        } catch { /* fall through */ }
+      }
+
+      const method = (typeof navigator.share === 'function' && navigator.canShare?.(shareData)) ? 'native' : 'clipboard';
+      track('share_clicked', { method, context });
+      if (typeof navigator.share === 'function' && navigator.canShare?.(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -641,6 +690,31 @@ export default function HUD({
             CHOOSE YOUR MODE
           </div>
 
+          {/* ── Challenge banner ─────────────────────────────────────────── */}
+          {challengeData && (
+            <div style={{
+              background: "rgba(245,200,66,0.08)",
+              border: "1.5px solid rgba(245,200,66,0.4)",
+              borderRadius: 10,
+              padding: isMobile ? "12px 16px" : "14px 24px",
+              marginBottom: 20,
+              textAlign: "center",
+              maxWidth: 420,
+              width: isMobile ? "90vw" : undefined,
+            }}>
+              <div style={{ color: "#f5c842", fontSize: isMobile ? 11 : 12, fontWeight: 800, letterSpacing: 3, marginBottom: 6 }}>
+                🏆 YOU WERE CHALLENGED
+              </div>
+              <div style={{ color: "#cccccc", fontSize: isMobile ? 13 : 15, fontWeight: 700, marginBottom: 4 }}>
+                {challengeData.name} beat {challengeData.mode === 'ai' ? `${challengeData.difficulty.toUpperCase()} AI` : 'a friend'} in{' '}
+                <span style={{ color: "#00ffcc" }}>{challengeData.moves} moves</span>
+              </div>
+              <div style={{ color: "#666688", fontSize: 11 }}>
+                Can you do it in fewer?
+              </div>
+            </div>
+          )}
+
           <div
             style={{
               display: "flex",
@@ -876,10 +950,35 @@ export default function HUD({
             )}
           </div>
 
+          {/* Name input for challenge link */}
+          <div style={{ marginBottom: 20, textAlign: "center" }}>
+            <div style={{ ...lbl, fontSize: 9, marginBottom: 8 }}>YOUR NAME (for challenge link)</div>
+            <input
+              value={playerName}
+              onChange={e => setPlayerName(e.target.value)}
+              placeholder="Anonymous"
+              maxLength={20}
+              style={{
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: 6,
+                color: "#ffffff",
+                fontFamily: "inherit",
+                fontSize: 13,
+                fontWeight: 700,
+                letterSpacing: 2,
+                padding: "8px 16px",
+                textAlign: "center",
+                outline: "none",
+                width: isMobile ? "70vw" : 220,
+              }}
+            />
+          </div>
+
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
             <GhostButton onClick={onReset}>PLAY AGAIN</GhostButton>
             <GhostButton onClick={() => handleShare('win')} color="#aa44ff" small>
-              {copied ? "COPIED!" : "SHARE WIN"}
+              {sharing ? "..." : copied ? "COPIED!" : "CHALLENGE FRIENDS"}
             </GhostButton>
             <GhostButton onClick={onChangeMode} color="#555577" small>
               CHANGE MODE
