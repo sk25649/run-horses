@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const data: ChallengeData = {
       name: String(name || 'Anonymous').slice(0, 20).trim(),
       moves: Math.floor(moves),
-      difficulty: ['easy', 'medium', 'hard', 'impossible'].includes(difficulty) ? difficulty : 'medium',
+      difficulty: ['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium',
       mode: mode === 'pvp' ? 'pvp' : 'ai',
       timestamp: Date.now(),
     };
