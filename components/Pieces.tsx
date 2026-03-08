@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
-import { useFrame, ThreeEvent } from '@react-three/fiber';
+import { useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GameState } from '@/lib/gameLogic';
 import { gridToWorld } from './Board';
@@ -12,10 +12,9 @@ interface PieceProps {
   col: number;
   player: 'white' | 'black';
   isSelected: boolean;
-  onCellClick: (row: number, col: number) => void;
 }
 
-function PieceMesh({ row, col, player, isSelected, onCellClick }: PieceProps) {
+function PieceMesh({ row, col, player, isSelected }: PieceProps) {
   const groupRef = useRef<THREE.Group>(null!);
   const animXZ = useRef<{ x: number; z: number } | null>(null);
 
@@ -58,22 +57,8 @@ function PieceMesh({ row, col, player, isSelected, onCellClick }: PieceProps) {
     emissiveIntensity,
   } as const;
 
-  const tapStart = useRef<{ x: number; y: number } | null>(null);
-  const handlePointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
-    tapStart.current = { x: e.clientX, y: e.clientY };
-  }, []);
-  const handlePointerUp = useCallback((e: ThreeEvent<PointerEvent>) => {
-    const s = tapStart.current;
-    tapStart.current = null;
-    if (!s) return;
-    const dx = e.clientX - s.x, dy = e.clientY - s.y;
-    if (dx * dx + dy * dy > 100) return;
-    e.stopPropagation();
-    onCellClick(row, col);
-  }, [onCellClick, row, col]);
-
   return (
-    <group ref={groupRef} onPointerDown={handlePointerDown} onPointerUp={handlePointerUp}>
+    <group ref={groupRef}>
       {/* ── Base disc ─────────────────────────────────────────────────── */}
       <mesh castShadow position={[0, -0.13, 0]}>
         <cylinderGeometry args={[0.33, 0.36, 0.09, 28]} />
@@ -127,13 +112,7 @@ function PieceMesh({ row, col, player, isSelected, onCellClick }: PieceProps) {
 }
 
 // ─── Pieces layer ─────────────────────────────────────────────────────────────
-export default function Pieces({
-  gameState,
-  onCellClick,
-}: {
-  gameState: GameState;
-  onCellClick: (row: number, col: number) => void;
-}) {
+export default function Pieces({ gameState }: { gameState: GameState }) {
   const pieces: { row: number; col: number; player: 'white' | 'black'; id: string }[] = [];
 
   for (let r = 0; r < 11; r++) {
@@ -155,7 +134,6 @@ export default function Pieces({
             col={col}
             player={player}
             isSelected={isSelected}
-            onCellClick={onCellClick}
           />
         );
       })}

@@ -34,6 +34,24 @@ function MobileTapHandler({ onCellClick }: { onCellClick: (r: number, c: number)
 
   useEffect(() => {
     const canvas = gl.domElement;
+
+    const handleHit = (clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect();
+      const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
+      const ny = -((clientY - rect.top) / rect.height) * 2 + 1;
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2(nx, ny), camera);
+      const hit = new THREE.Vector3();
+      if (!ray.ray.intersectPlane(BOARD_PLANE, hit)) return;
+      const col = Math.round(hit.x / TILE_GAP + 5);
+      const row = Math.round(hit.z / TILE_GAP + 5);
+      if (col >= 0 && col < 11 && row >= 0 && row < 11) {
+        callbackRef.current(row, col);
+      }
+    };
+
+    // ── Mobile: raw touchend (OrbitControls intercepts pointer events on touch) ──
+    let lastTouchTime = 0;
     const tap = { x: 0, y: 0, active: false };
 
     const onTouchStart = (e: TouchEvent) => {
@@ -45,31 +63,39 @@ function MobileTapHandler({ onCellClick }: { onCellClick: (r: number, c: number)
     const onTouchEnd = (e: TouchEvent) => {
       if (!tap.active) return;
       tap.active = false;
+      lastTouchTime = Date.now();
       const t = e.changedTouches[0];
       const dx = t.clientX - tap.x, dy = t.clientY - tap.y;
       if (dx * dx + dy * dy > 144) return; // >12px = drag, ignore
+      handleHit(t.clientX, t.clientY);
+    };
 
-      const rect = canvas.getBoundingClientRect();
-      const nx = ((t.clientX - rect.left) / rect.width) * 2 - 1;
-      const ny = -((t.clientY - rect.top) / rect.height) * 2 + 1;
+    // ── Desktop: raw pointer events, bypassing OrbitControls capture ───────────
+    let desktopStart = { x: 0, y: 0 };
 
-      const ray = new THREE.Raycaster();
-      ray.setFromCamera(new THREE.Vector2(nx, ny), camera);
-      const hit = new THREE.Vector3();
-      if (!ray.ray.intersectPlane(BOARD_PLANE, hit)) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') return; // handled by touchend above
+      if (Date.now() - lastTouchTime < 500) return; // ignore ghost events after touch
+      desktopStart = { x: e.clientX, y: e.clientY };
+    };
 
-      const col = Math.round(hit.x / TILE_GAP + 5);
-      const row = Math.round(hit.z / TILE_GAP + 5);
-      if (col >= 0 && col < 11 && row >= 0 && row < 11) {
-        callbackRef.current(row, col);
-      }
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') return;
+      if (Date.now() - lastTouchTime < 500) return;
+      const dx = e.clientX - desktopStart.x, dy = e.clientY - desktopStart.y;
+      if (dx * dx + dy * dy > 100) return; // >10px = drag, not click
+      handleHit(e.clientX, e.clientY);
     };
 
     canvas.addEventListener('touchstart', onTouchStart, { passive: true });
     canvas.addEventListener('touchend', onTouchEnd, { passive: true });
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointerup', onPointerUp);
     return () => {
       canvas.removeEventListener('touchstart', onTouchStart);
       canvas.removeEventListener('touchend', onTouchEnd);
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointerup', onPointerUp);
     };
   }, [camera, gl]);
 
@@ -255,8 +281,8 @@ export default function GameScene() {
         <MobileTapHandler onCellClick={handleCellClick} />
 
         <Suspense fallback={null}>
-          <Board gameState={gameState} onCellClick={handleCellClick} />
-          <Pieces gameState={gameState} onCellClick={handleCellClick} />
+          <Board gameState={gameState} />
+          <Pieces gameState={gameState} />
         </Suspense>
 
         <OrbitControls
