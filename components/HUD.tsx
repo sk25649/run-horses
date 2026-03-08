@@ -1,36 +1,103 @@
-'use client';
+"use client";
 
-import { GameState, GameMode, Difficulty, Player, canLJump, getTerrain, rowLabel, colLabel } from '@/lib/gameLogic';
-import { CSSProperties, useState, useEffect } from 'react';
+import {
+  GameState,
+  GameMode,
+  Difficulty,
+  Player,
+  canLJump,
+  getTerrain,
+  rowLabel,
+  colLabel,
+} from "@/lib/gameLogic";
+import { CSSProperties, useState, useEffect, useRef } from "react";
+
+// ─── Confetti ─────────────────────────────────────────────────────────────────
+function Confetti() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const colors = ["#00ffcc", "#f5c842", "#ff4466", "#4488ff", "#aa44ff", "#ffffff", "#ffaa00"];
+    const pieces = Array.from({ length: 140 }, () => ({
+      x:        Math.random() * canvas.width,
+      y:        Math.random() * canvas.height * 0.4 - canvas.height * 0.2,
+      w:        Math.random() * 11 + 5,
+      h:        Math.random() * 5  + 3,
+      color:    colors[Math.floor(Math.random() * colors.length)],
+      vy:       Math.random() * 3.5 + 1.5,
+      vx:       (Math.random() - 0.5) * 1.8,
+      rot:      Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.15,
+      opacity:  1,
+    }));
+
+    const start = Date.now();
+    let raf: number;
+    const draw = () => {
+      const elapsed = Date.now() - start;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      pieces.forEach(p => {
+        p.y   += p.vy;
+        p.x   += p.vx;
+        p.rot += p.rotSpeed;
+        if (p.y > canvas.height) { p.y = -20; p.x = Math.random() * canvas.width; }
+        p.opacity = elapsed > 3200 ? Math.max(0, 1 - (elapsed - 3200) / 1200) : 1;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.globalAlpha = p.opacity;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      });
+      if (elapsed < 4400) raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 55 }}
+    />
+  );
+}
 
 // ─── Shared panel styles ──────────────────────────────────────────────────────
 const panel: CSSProperties = {
-  background: 'rgba(4,4,14,0.75)',
-  border: '1px solid rgba(255,255,255,0.08)',
+  background: "rgba(4,4,14,0.75)",
+  border: "1px solid rgba(255,255,255,0.08)",
   borderRadius: 10,
-  padding: '10px 18px',
-  backdropFilter: 'blur(10px)',
+  padding: "10px 18px",
+  backdropFilter: "blur(10px)",
 };
 
 const lbl: CSSProperties = {
-  color: '#44445a',
+  color: "#44445a",
   fontSize: 9,
-  letterSpacing: '2.5px',
-  textTransform: 'uppercase',
+  letterSpacing: "2.5px",
+  textTransform: "uppercase",
   marginBottom: 4,
 };
 
 const val: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
-  letterSpacing: '1px',
+  letterSpacing: "1px",
 };
 
 // ─── Reusable ghost button ────────────────────────────────────────────────────
 function GhostButton({
   children,
   onClick,
-  color = '#00ffcc',
+  color = "#00ffcc",
   small = false,
 }: {
   children: React.ReactNode;
@@ -42,20 +109,25 @@ function GhostButton({
     <button
       onClick={onClick}
       style={{
-        background: 'transparent',
+        background: "transparent",
         border: `1.5px solid ${color}`,
         color,
-        padding: small ? '8px 22px' : '14px 44px',
+        padding: small ? "8px 22px" : "14px 44px",
         fontSize: small ? 11 : 13,
         fontWeight: 700,
         letterSpacing: small ? 2 : 4,
-        cursor: 'pointer',
+        cursor: "pointer",
         borderRadius: 4,
-        fontFamily: 'inherit',
-        transition: 'background 0.15s',
+        fontFamily: "inherit",
+        transition: "background 0.15s",
       }}
-      onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.background = `${color}18`)}
-      onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.background = 'transparent')}
+      onMouseEnter={(e) =>
+        ((e.currentTarget as HTMLButtonElement).style.background = `${color}18`)
+      }
+      onMouseLeave={(e) =>
+        ((e.currentTarget as HTMLButtonElement).style.background =
+          "transparent")
+      }
     >
       {children}
     </button>
@@ -64,12 +136,12 @@ function GhostButton({
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface HUDProps {
-  gameState:    GameState;
-  gameMode:     GameMode | null;
-  aiThinking:   boolean;
-  difficulty:   Difficulty;
-  winner:       Player | null;
-  onReset:      () => void;
+  gameState: GameState;
+  gameMode: GameMode | null;
+  aiThinking: boolean;
+  difficulty: Difficulty;
+  winner: Player | null;
+  onReset: () => void;
   onChangeMode: () => void;
   onSelectMode: (mode: GameMode, diff?: Difficulty) => void;
 }
@@ -89,37 +161,50 @@ export default function HUD({
 
   const terrainLabel = selectedCell
     ? getTerrain(selectedCell[0], selectedCell[1]).toUpperCase()
-    : '—';
+    : "—";
 
-  const hasSel      = selectedCell !== null;
+  const hasSel = selectedCell !== null;
   const jumpAllowed = hasSel && canLJump(selectedCell![0], selectedCell![1]);
 
   const abilityText = hasSel
-    ? jumpAllowed ? 'L-JUMP  +  SLIDE' : 'SLIDE ONLY'
-    : aiThinking ? 'PROCESSING...' : 'SELECT A PIECE';
+    ? jumpAllowed
+      ? "L-JUMP  +  SLIDE"
+      : "SLIDE ONLY"
+    : aiThinking
+      ? "PROCESSING..."
+      : "SELECT A PIECE";
 
   const abilityColor = hasSel
-    ? jumpAllowed ? '#f5c842' : '#70c0ff'
-    : aiThinking ? '#ff6666' : '#444466';
+    ? jumpAllowed
+      ? "#f5c842"
+      : "#70c0ff"
+    : aiThinking
+      ? "#ff6666"
+      : "#444466";
 
   const coordLabel = selectedCell
     ? `${rowLabel(selectedCell[0])}${colLabel(selectedCell[1])}`
-    : '—';
+    : "—";
 
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 640);
     check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
   }, []);
 
   // Human-readable turn label
-  const isAITurn = gameMode === 'ai' && currentTurn === 'black';
-  const turnLabel = gameMode === 'ai'
-    ? currentTurn === 'white' ? '○ YOU (WHITE)' : '● AI (BLACK)'
-    : currentTurn === 'white' ? '○ WHITE' : '● BLACK';
-  const turnColor = currentTurn === 'white' ? '#e8e8e8' : '#8888aa';
+  const isAITurn = gameMode === "ai" && currentTurn === "black";
+  const turnLabel =
+    gameMode === "ai"
+      ? currentTurn === "white"
+        ? "○ YOU (WHITE)"
+        : "● AI (BLACK)"
+      : currentTurn === "white"
+        ? "○ WHITE"
+        : "● BLACK";
+  const turnColor = currentTurn === "white" ? "#e8e8e8" : "#8888aa";
 
   return (
     <>
@@ -136,32 +221,68 @@ export default function HUD({
       {gameMode !== null && (
         <div
           style={{
-            position: 'fixed', top: 0, left: 0, right: 0,
-            display: 'flex', alignItems: 'flex-start', gap: 8,
-            padding: isMobile ? '10px 12px' : '16px 20px',
-            background: 'linear-gradient(to bottom, rgba(4,4,14,0.92) 0%, transparent 100%)',
-            pointerEvents: 'none',
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 8,
+            padding: isMobile ? "10px 12px" : "16px 20px",
+            background:
+              "linear-gradient(to bottom, rgba(4,4,14,0.92) 0%, transparent 100%)",
+            pointerEvents: "none",
             zIndex: 10,
-            flexWrap: 'nowrap',
-            overflow: 'hidden',
+            flexWrap: "nowrap",
+            overflow: "hidden",
           }}
         >
           {/* Title */}
-          <div style={{ ...panel, flex: '0 0 auto', padding: isMobile ? '7px 12px' : '10px 18px' }}>
-            <div style={{ color: '#ffffff', fontSize: isMobile ? 12 : 15, fontWeight: 800, letterSpacing: 2 }}>
+          <div
+            style={{
+              ...panel,
+              flex: "0 0 auto",
+              padding: isMobile ? "7px 12px" : "10px 18px",
+            }}
+          >
+            <div
+              style={{
+                color: "#ffffff",
+                fontSize: isMobile ? 12 : 15,
+                fontWeight: 800,
+                letterSpacing: 2,
+              }}
+            >
               RUN HORSES!
             </div>
             {!isMobile && (
-              <div style={{ color: '#333355', fontSize: 9, letterSpacing: 4, marginTop: 2 }}>
-                {gameMode === 'ai' ? 'SINGLE PLAYER' : 'TWO PLAYERS'}
+              <div
+                style={{
+                  color: "#333355",
+                  fontSize: 9,
+                  letterSpacing: 4,
+                  marginTop: 2,
+                }}
+              >
+                {gameMode === "ai" ? "SINGLE PLAYER" : "TWO PLAYERS"}
               </div>
             )}
           </div>
 
           {/* Turn */}
-          <div style={{ ...panel, flex: '0 0 auto', padding: isMobile ? '7px 12px' : '10px 18px' }}>
+          <div
+            style={{
+              ...panel,
+              flex: "0 0 auto",
+              padding: isMobile ? "7px 12px" : "10px 18px",
+            }}
+          >
             <div style={{ ...lbl, fontSize: isMobile ? 8 : 9 }}>TURN</div>
-            <div style={{ ...val, color: turnColor, fontSize: isMobile ? 11 : 13 }}>{turnLabel}</div>
+            <div
+              style={{ ...val, color: turnColor, fontSize: isMobile ? 11 : 13 }}
+            >
+              {turnLabel}
+            </div>
           </div>
 
           {/* Ability / AI thinking — hidden on mobile */}
@@ -169,7 +290,9 @@ export default function HUD({
             <div style={{ ...panel, minWidth: 185 }}>
               <div style={lbl}>ABILITY STATUS</div>
               {aiThinking ? (
-                <div className="ai-blink" style={{ ...val, color: '#ff6666' }}>◈ AI THINKING...</div>
+                <div className="ai-blink" style={{ ...val, color: "#ff6666" }}>
+                  ◈ AI THINKING...
+                </div>
               ) : (
                 <div style={{ ...val, color: abilityColor }}>{abilityText}</div>
               )}
@@ -180,9 +303,11 @@ export default function HUD({
           {!isMobile && (
             <div style={{ ...panel, minWidth: 110 }}>
               <div style={lbl}>SELECTED</div>
-              <div style={{ ...val, color: '#cccccc' }}>
-                {coordLabel}{' '}
-                <span style={{ fontWeight: 400, color: '#44445a' }}>{terrainLabel}</span>
+              <div style={{ ...val, color: "#cccccc" }}>
+                {coordLabel}{" "}
+                <span style={{ fontWeight: 400, color: "#44445a" }}>
+                  {terrainLabel}
+                </span>
               </div>
             </div>
           )}
@@ -191,19 +316,34 @@ export default function HUD({
           {!isMobile && (
             <div style={{ ...panel, minWidth: 80 }}>
               <div style={lbl}>MOVES</div>
-              <div style={{ ...val, color: '#00ffcc' }}>{gameState.validMoves.length || '—'}</div>
+              <div style={{ ...val, color: "#00ffcc" }}>
+                {gameState.validMoves.length || "—"}
+              </div>
             </div>
           )}
 
           {/* Difficulty */}
-          {gameMode === 'ai' && (
-            <div style={{ ...panel, flex: '0 0 auto', padding: isMobile ? '7px 12px' : '10px 18px' }}>
+          {gameMode === "ai" && (
+            <div
+              style={{
+                ...panel,
+                flex: "0 0 auto",
+                padding: isMobile ? "7px 12px" : "10px 18px",
+              }}
+            >
               <div style={{ ...lbl, fontSize: isMobile ? 8 : 9 }}>DIFF</div>
-              <div style={{
-                ...val,
-                fontSize: isMobile ? 11 : 13,
-                color: difficulty === 'easy' ? '#44dd88' : difficulty === 'medium' ? '#f5c842' : '#ff4466',
-              }}>
+              <div
+                style={{
+                  ...val,
+                  fontSize: isMobile ? 11 : 13,
+                  color:
+                    difficulty === "easy"
+                      ? "#44dd88"
+                      : difficulty === "medium"
+                        ? "#f5c842"
+                        : "#ff4466",
+                }}
+              >
                 {difficulty.toUpperCase()}
               </div>
             </div>
@@ -211,8 +351,13 @@ export default function HUD({
 
           {/* AI thinking indicator on mobile */}
           {isMobile && aiThinking && (
-            <div style={{ ...panel, flex: '0 0 auto', padding: '7px 12px' }}>
-              <div className="ai-blink" style={{ color: '#ff6666', fontSize: 11, fontWeight: 700 }}>◈ AI...</div>
+            <div style={{ ...panel, flex: "0 0 auto", padding: "7px 12px" }}>
+              <div
+                className="ai-blink"
+                style={{ color: "#ff6666", fontSize: 11, fontWeight: 700 }}
+              >
+                ◈ AI...
+              </div>
             </div>
           )}
         </div>
@@ -222,24 +367,40 @@ export default function HUD({
       {gameMode !== null && !isMobile && (
         <div
           style={{
-            position: 'fixed', bottom: 20, left: 20,
-            display: 'flex', flexDirection: 'column', gap: 6,
-            pointerEvents: 'none', zIndex: 10,
+            position: "fixed",
+            bottom: 20,
+            left: 20,
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            pointerEvents: "none",
+            zIndex: 10,
           }}
         >
           {[
-            { color: '#c9932c', text: 'Desert — L-Jump + Slide' },
-            { color: '#1d6b34', text: 'Garden — Slide Only' },
-            { color: '#00ffcc', text: 'Oasis  — GOAL (f6)' },
+            { color: "#c9932c", text: "Desert — L-Jump + Slide" },
+            { color: "#1d6b34", text: "Garden — Slide Only" },
+            { color: "#00ffcc", text: "Oasis  — GOAL (f6)" },
           ].map(({ color, text }) => (
-            <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div
+              key={text}
+              style={{ display: "flex", alignItems: "center", gap: 8 }}
+            >
               <div
                 style={{
-                  width: 12, height: 12, borderRadius: 3, background: color,
-                  boxShadow: color === '#00ffcc' ? `0 0 8px ${color}` : undefined,
+                  width: 12,
+                  height: 12,
+                  borderRadius: 3,
+                  background: color,
+                  boxShadow:
+                    color === "#00ffcc" ? `0 0 8px ${color}` : undefined,
                 }}
               />
-              <span style={{ color: '#55556a', fontSize: 10, letterSpacing: '1px' }}>{text}</span>
+              <span
+                style={{ color: "#55556a", fontSize: 10, letterSpacing: "1px" }}
+              >
+                {text}
+              </span>
             </div>
           ))}
         </div>
@@ -249,13 +410,26 @@ export default function HUD({
       {gameMode !== null && !isAITurn && !isMobile && (
         <div
           style={{
-            position: 'fixed', bottom: 20, right: 20,
-            pointerEvents: 'none', zIndex: 10, textAlign: 'right',
+            position: "fixed",
+            bottom: 20,
+            right: 20,
+            pointerEvents: "none",
+            zIndex: 10,
+            textAlign: "right",
           }}
         >
-          <div style={{ color: '#33334a', fontSize: 10, letterSpacing: '1px', lineHeight: 1.8 }}>
-            Tap piece → select<br />
-            Tap highlighted tile → move<br />
+          <div
+            style={{
+              color: "#33334a",
+              fontSize: 10,
+              letterSpacing: "1px",
+              lineHeight: 1.8,
+            }}
+          >
+            Tap piece → select
+            <br />
+            Tap highlighted tile → move
+            <br />
             Drag → orbit camera
           </div>
         </div>
@@ -265,11 +439,18 @@ export default function HUD({
       {aiThinking && (
         <div
           style={{
-            position: 'fixed', bottom: 20, right: 20,
-            pointerEvents: 'none', zIndex: 10, textAlign: 'right',
+            position: "fixed",
+            bottom: 20,
+            right: 20,
+            pointerEvents: "none",
+            zIndex: 10,
+            textAlign: "right",
           }}
         >
-          <div className="ai-blink" style={{ color: '#ff6666', fontSize: 11, letterSpacing: '2px' }}>
+          <div
+            className="ai-blink"
+            style={{ color: "#ff6666", fontSize: 11, letterSpacing: "2px" }}
+          >
             ◈ OPPONENT CALCULATING
           </div>
         </div>
@@ -282,93 +463,119 @@ export default function HUD({
         <div
           className="mode-fade"
           style={{
-            position: 'fixed', inset: 0,
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(4,4,14,0.72)',
-            backdropFilter: 'blur(4px)',
+            position: "fixed",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(4,4,14,0.78)",
+            backdropFilter: "blur(6px)",
             zIndex: 60,
+            overflowY: "auto",
+            padding: "24px 16px",
           }}
         >
           {/* Logo */}
-          <div style={{ marginBottom: 8, textAlign: 'center' }}>
-            <div style={{ fontSize: isMobile ? 28 : 42, fontWeight: 900, color: '#ffffff', letterSpacing: isMobile ? 3 : 6 }}>
+          <div style={{ marginBottom: 4, textAlign: "center" }}>
+            <div style={{ fontSize: isMobile ? 28 : 44, fontWeight: 900, color: "#ffffff", letterSpacing: isMobile ? 3 : 6 }}>
               RUN HORSES!
             </div>
-            <div style={{ fontSize: isMobile ? 10 : 12, color: '#00ffcc', letterSpacing: isMobile ? 4 : 8, marginTop: 4 }}>
-              BRAIN TEASING 3D GAME
+            <div style={{ fontSize: isMobile ? 10 : 11, color: "#00ffcc", letterSpacing: isMobile ? 4 : 8, marginTop: 4 }}>
+              TACTICAL BOARD GAME
             </div>
           </div>
 
-          <div style={{ color: '#333355', fontSize: 11, letterSpacing: 4, margin: isMobile ? '16px 0 20px' : '28px 0 32px' }}>
-            CHOOSE YOUR MODE
+          {/* ── How to play ──────────────────────────────────────────────── */}
+          <div
+            style={{
+              margin: isMobile ? "18px 0 20px" : "22px 0 24px",
+              background: "rgba(4,4,14,0.88)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 10,
+              padding: isMobile ? "14px 18px" : "16px 28px",
+              width: isMobile ? "90vw" : undefined,
+              maxWidth: 560,
+            }}
+          >
+            <div style={{ color: "#555577", fontSize: 9, letterSpacing: 4, marginBottom: 12, textTransform: "uppercase" }}>
+              How to Play
+            </div>
+            {[
+              { label: "SLIDE", color: "#70c0ff", desc: "Pieces glide horizontally or vertically to the last open cell in that direction." },
+              { label: "L-JUMP", color: "#f5c842", desc: "On desert (brown) tiles only — jump in an L-shape to any other desert tile." },
+              { label: "GOAL", color: "#00ffcc", desc: "First player to land a piece on the glowing Oasis wins." },
+            ].map(({ label, color, desc }) => (
+              <div key={label} style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 10 }}>
+                <span style={{ color, fontSize: 10, fontWeight: 800, letterSpacing: 2, whiteSpace: "nowrap", paddingTop: 1, minWidth: 56 }}>{label}</span>
+                <span style={{ color: "#8888aa", fontSize: 11, lineHeight: 1.6 }}>{desc}</span>
+              </div>
+            ))}
           </div>
 
-          <div style={{
-            display: 'flex',
-            flexDirection: isMobile ? 'column' : 'row',
-            gap: isMobile ? 12 : 20,
-            alignItems: 'flex-start',
-            width: isMobile ? '90vw' : undefined,
-            maxWidth: isMobile ? 360 : undefined,
-          }}>
-            {/* Single Player card with difficulty */}
+          {/* ── Mode cards ───────────────────────────────────────────────── */}
+          <div style={{ color: "#555577", fontSize: 10, letterSpacing: 4, marginBottom: 16 }}>CHOOSE YOUR MODE</div>
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: isMobile ? "column" : "row",
+              gap: isMobile ? 12 : 16,
+              alignItems: "flex-start",
+              width: isMobile ? "90vw" : undefined,
+              maxWidth: isMobile ? 360 : undefined,
+            }}
+          >
+            {/* Single Player card */}
             <div
               style={{
-                background: 'rgba(255,255,255,0.02)',
-                border: '1px solid rgba(255,255,255,0.1)',
+                background: "rgba(4,4,14,0.92)",
+                border: "1px solid rgba(255,255,255,0.14)",
                 borderRadius: 12,
-                padding: isMobile ? '20px 22px' : '28px 36px',
-                textAlign: 'left',
-                width: isMobile ? '100%' : undefined,
-                minWidth: isMobile ? undefined : 200,
+                padding: isMobile ? "18px 20px" : "24px 28px",
+                textAlign: "left",
+                width: isMobile ? "100%" : undefined,
+                minWidth: isMobile ? undefined : 210,
               }}
             >
-              <div style={{ fontSize: 28, marginBottom: 10 }}>🤖</div>
-              <div style={{ color: '#ffffff', fontSize: 14, fontWeight: 700, letterSpacing: 2, marginBottom: 6 }}>
-                SINGLE PLAYER
+              <div style={{ color: "#ffffff", fontSize: 13, fontWeight: 800, letterSpacing: 2, marginBottom: 14 }}>
+                VS AI
               </div>
-              <div style={{ color: '#44445a', fontSize: 10, letterSpacing: 1, lineHeight: 1.7, marginBottom: 18 }}>
-                You play White.<br />
-                AI plays Black.<br />
-                Race to claim f6.
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {(['easy', 'medium', 'hard'] as Difficulty[]).map(d => {
-                  const color = d === 'easy' ? '#44dd88' : d === 'medium' ? '#f5c842' : '#ff4466';
-                  const desc  = d === 'easy' ? 'Random moves' : d === 'medium' ? 'Tactical (2-ply)' : 'Strategic (4-ply)';
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(["easy", "medium", "hard"] as Difficulty[]).map((d) => {
+                  const color = d === "easy" ? "#44dd88" : d === "medium" ? "#f5c842" : "#ff4466";
+                  const desc  = d === "easy" ? "Random moves" : d === "medium" ? "2-ply tactical" : "4-ply strategic";
                   return (
                     <button
                       key={d}
-                      onClick={() => onSelectMode('ai', d)}
+                      onClick={() => onSelectMode("ai", d)}
                       style={{
-                        background: 'transparent',
-                        border: `1.5px solid ${color}44`,
+                        background: `${color}11`,
+                        border: `1.5px solid ${color}55`,
                         color,
-                        borderRadius: 6,
-                        padding: '8px 14px',
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                        fontSize: 11,
+                        borderRadius: 7,
+                        padding: "10px 14px",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        fontSize: 12,
                         fontWeight: 700,
                         letterSpacing: 2,
-                        textAlign: 'left',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        transition: 'background 0.15s, border-color 0.15s',
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        transition: "background 0.15s, border-color 0.15s",
                       }}
-                      onMouseEnter={e => {
-                        (e.currentTarget as HTMLButtonElement).style.background = `${color}18`;
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = `${color}28`;
                         (e.currentTarget as HTMLButtonElement).style.borderColor = color;
                       }}
-                      onMouseLeave={e => {
-                        (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                        (e.currentTarget as HTMLButtonElement).style.borderColor = `${color}44`;
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = `${color}11`;
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = `${color}55`;
                       }}
                     >
                       <span>{d.toUpperCase()}</span>
-                      <span style={{ fontSize: 9, fontWeight: 400, opacity: 0.6, letterSpacing: 1 }}>{desc}</span>
+                      <span style={{ fontSize: 9, fontWeight: 400, opacity: 0.65, letterSpacing: 1 }}>{desc}</span>
                     </button>
                   );
                 })}
@@ -378,34 +585,30 @@ export default function HUD({
             {/* Two Players card */}
             <button
               className="mode-card"
-              onClick={() => onSelectMode('pvp')}
+              onClick={() => onSelectMode("pvp")}
               style={{
-                background: 'rgba(255,255,255,0.02)',
-                border: '1px solid rgba(255,255,255,0.1)',
+                background: "rgba(4,4,14,0.92)",
+                border: "1px solid rgba(255,255,255,0.14)",
                 borderRadius: 12,
-                padding: isMobile ? '20px 22px' : '28px 36px',
-                cursor: 'pointer',
-                textAlign: 'left',
-                width: isMobile ? '100%' : undefined,
-                minWidth: isMobile ? undefined : 200,
-                fontFamily: 'inherit',
-                transition: 'background 0.15s, border-color 0.15s',
+                padding: isMobile ? "18px 20px" : "24px 28px",
+                cursor: "pointer",
+                textAlign: "left",
+                width: isMobile ? "100%" : undefined,
+                minWidth: isMobile ? undefined : 170,
+                fontFamily: "inherit",
+                transition: "border-color 0.15s",
+                alignSelf: "stretch",
               }}
             >
-              <div style={{ fontSize: 28, marginBottom: 10 }}>⚔️</div>
-              <div style={{ color: '#ffffff', fontSize: 14, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>
-                TWO PLAYERS
+              <div style={{ color: "#ffffff", fontSize: 13, fontWeight: 800, letterSpacing: 2, marginBottom: 12 }}>
+                2 PLAYERS
               </div>
-              <div style={{ color: '#44445a', fontSize: 10, letterSpacing: 1, lineHeight: 1.7 }}>
+              <div style={{ color: "#666688", fontSize: 11, lineHeight: 1.8 }}>
                 Pass &amp; play locally.<br />
                 White vs Black.<br />
                 First to f6 wins.
               </div>
             </button>
-          </div>
-
-          <div style={{ marginTop: 44, color: '#1a1a2e', fontSize: 10, letterSpacing: 3 }}>
-            11×11 GRID · L-JUMP · HORIZONTAL SLIDE
           </div>
         </div>
       )}
@@ -413,36 +616,54 @@ export default function HUD({
       {/* ════════════════════════════════════════════════════════════════════
           WIN OVERLAY
       ═════════════════════════════════════════════════════════════════════ */}
+      {winner && <Confetti key={winner} />}
+
       {winner && (
         <div
           style={{
-            position: 'fixed', inset: 0,
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(4,4,14,0.88)',
+            position: "fixed",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(4,4,14,0.82)",
             zIndex: 50,
-            backdropFilter: 'blur(6px)',
+            backdropFilter: "blur(6px)",
           }}
         >
           {/* Win headline changes based on mode */}
           <div
             style={{
-              fontSize: isMobile ? 28 : 52, fontWeight: 900, letterSpacing: isMobile ? 1 : 3, marginBottom: 16,
-              color: winner === 'white' ? '#e8e8e8' : '#aaaacc',
-              textShadow: '0 0 60px rgba(0,255,200,0.7)',
-              textAlign: 'center',
+              fontSize: isMobile ? 28 : 52,
+              fontWeight: 900,
+              letterSpacing: isMobile ? 1 : 3,
+              marginBottom: 16,
+              color: winner === "white" ? "#e8e8e8" : "#aaaacc",
+              textShadow: "0 0 60px rgba(0,255,200,0.7)",
+              textAlign: "center",
             }}
           >
-            {gameMode === 'ai'
-              ? winner === 'white' ? 'YOU claimed the Oasis!' : 'AI claimed the Oasis!'
-              : `${winner === 'white' ? 'WHITE' : 'BLACK'} claimed the Oasis!`}
+            {gameMode === "ai"
+              ? winner === "white"
+                ? "YOU claimed the Oasis!"
+                : "AI claimed the Oasis!"
+              : `${winner === "white" ? "WHITE" : "BLACK"} claimed the Oasis!`}
           </div>
 
-          <div style={{ color: '#00ffcc', fontSize: isMobile ? 12 : 16, letterSpacing: 6, marginBottom: 36, textAlign: 'center' }}>
+          <div
+            style={{
+              color: "#00ffcc",
+              fontSize: isMobile ? 12 : 16,
+              letterSpacing: 6,
+              marginBottom: 36,
+              textAlign: "center",
+            }}
+          >
             ◈ f6 REACHED
           </div>
 
-          <div style={{ display: 'flex', gap: 16 }}>
+          <div style={{ display: "flex", gap: 16 }}>
             <GhostButton onClick={onReset}>PLAY AGAIN</GhostButton>
             <GhostButton onClick={onChangeMode} color="#555577" small>
               CHANGE MODE
