@@ -43,14 +43,19 @@ export default class GameServer implements Party.Server {
   }
 
   onConnect(conn: Party.Connection) {
-    const disconnected = this.slots.find((s) => !s.connected);
-
-    if (disconnected) {
-      // Possible reconnect — pre-assign that color, await 'join' to confirm name
-      this.send(conn, { type: "assigned", color: disconnected.color });
+    if (this.gameStarted) {
+      // ── Game in progress: only allow reconnects ──────────────────────────
+      const disconnected = this.slots.find((s) => !s.connected);
+      if (disconnected) {
+        // Pre-assign disconnected player's color; wait for 'join' to confirm
+        this.send(conn, { type: "assigned", color: disconnected.color });
+      } else {
+        this.send(conn, { type: "room_full" });
+      }
       return;
     }
 
+    // ── Game not started: accept new players freely ──────────────────────────
     const connectedCount = this.slots.filter((s) => s.connected).length;
     if (connectedCount >= 2) {
       this.send(conn, { type: "room_full" });
@@ -59,8 +64,6 @@ export default class GameServer implements Party.Server {
 
     const color: Player = this.slots.length === 0 ? "white" : "black";
     this.slots.push({ id: conn.id, name: "Anonymous", color, joined: false, connected: true });
-    // Only send 'assigned' here — 'waiting' is sent after 'join' so the client
-    // can show the name-entry screen before being pushed to the waiting overlay.
     this.send(conn, { type: "assigned", color });
   }
 
@@ -78,45 +81,22 @@ export default class GameServer implements Party.Server {
         const existingSlot = this.slots.find((s) => s.id === sender.id);
 
         if (!existingSlot) {
-          // This conn was pre-assigned a color for a possible rejoin
+          // Only valid during an in-progress game reconnect
+          if (!this.gameStarted) return;
           const disconnected = this.slots.find((s) => !s.connected);
           if (!disconnected) return;
 
-          // Update the slot to use new conn.id regardless of name match
           disconnected.id = sender.id;
           disconnected.name = name;
           disconnected.connected = true;
 
           this.send(sender, { type: "assigned", color: disconnected.color });
-
-          if (this.gameStarted) {
-            // Resume game — send current state to rejoiner
-            this.send(sender, {
-              type: "start",
-              players: this.slots.map((s) => ({ name: s.name, color: s.color })),
-              gameState: this.gameState,
-            });
-            // Notify other player
-            this.broadcast(
-              { type: "opponent_rejoined", name },
-              [sender.id]
-            );
-          } else {
-            // Check if both ready
-            const bothReady = this.slots.length === 2 && this.slots.every((s) => s.joined || s.id === sender.id);
-            disconnected.joined = true;
-            if (bothReady) {
-              this.gameStarted = true;
-              this.gameState = createInitialState();
-              this.broadcast({
-                type: "start",
-                players: this.slots.map((s) => ({ name: s.name, color: s.color })),
-                gameState: this.gameState,
-              });
-            } else {
-              this.send(sender, { type: "waiting" });
-            }
-          }
+          this.send(sender, {
+            type: "start",
+            players: this.slots.map((s) => ({ name: s.name, color: s.color })),
+            gameState: this.gameState,
+          });
+          this.broadcast({ type: "opponent_rejoined", name }, [sender.id]);
           break;
         }
 
@@ -133,7 +113,6 @@ export default class GameServer implements Party.Server {
             gameState: this.gameState,
           });
         } else {
-          // Game not ready yet — tell this player to wait
           this.send(sender, { type: "waiting" });
         }
         break;
@@ -168,7 +147,7 @@ export default class GameServer implements Party.Server {
           this.gameState = createInitialState();
           this.lastMove = null;
           this.rematchVotes.clear();
-          // Swap colors for fairness
+          this.gameStarted = true;
           this.slots = this.slots.map((s) => ({
             ...s,
             color: s.color === "white" ? "black" : "white",
@@ -188,10 +167,18 @@ export default class GameServer implements Party.Server {
 
   onClose(conn: Party.Connection) {
     const slot = this.slots.find((s) => s.id === conn.id);
-    if (slot) {
+    if (!slot) return;
+
+    if (this.gameStarted) {
+      // Keep slot for reconnect
       slot.connected = false;
-      // Keep slot in memory to allow rejoin
       this.broadcast({ type: "opponent_left" }, [conn.id]);
+    } else {
+      // Before game starts — free the slot so others can join
+      this.slots = this.slots.filter((s) => s.id !== conn.id);
+      if (this.slots.length > 0) {
+        this.broadcast({ type: "opponent_left" }, [conn.id]);
+      }
     }
   }
 }
