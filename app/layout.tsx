@@ -4,7 +4,17 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Run Horses! 3D',
-  description: 'A 3D tactical board game. Race your horses to the Oasis at f6.',
+  description: 'A 3D tactical board game. Race your horses to the Oasis.',
+  openGraph: {
+    title: 'Run Horses! 3D',
+    description: 'A 3D tactical board game. Race your horses to the Oasis.',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Run Horses! 3D',
+    description: 'A 3D tactical board game. Race your horses to the Oasis.',
+  },
 };
 
 export const viewport: Viewport = {
