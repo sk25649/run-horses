@@ -448,7 +448,9 @@ export default function HUD({
                       ? "#44dd88"
                       : difficulty === "medium"
                         ? "#f5c842"
-                        : "#ff4466",
+                        : difficulty === "hard"
+                          ? "#ff4466"
+                          : "#cc00ff",
                 }}
               >
                 {difficulty.toUpperCase()}
@@ -750,13 +752,15 @@ export default function HUD({
                 VS AI
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {(["easy", "medium", "hard"] as Difficulty[]).map((d) => {
+                {(["easy", "medium", "hard", "impossible"] as Difficulty[]).map((d) => {
                   const color =
                     d === "easy"
                       ? "#44dd88"
                       : d === "medium"
                         ? "#f5c842"
-                        : "#ff4466";
+                        : d === "hard"
+                          ? "#ff4466"
+                          : "#cc00ff";
                   return (
                     <button
                       key={d}
