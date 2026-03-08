@@ -8,6 +8,7 @@ import {
   GameState,
   GameMode,
   Difficulty,
+  Player,
   createInitialState,
   selectCell,
   applyMove,
@@ -129,6 +130,7 @@ export default function GameScene() {
   const [gameState, setGameState]   = useState<GameState>(createInitialState);
   const [aiThinking, setAiThinking] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [displayWinner, setDisplayWinner] = useState<Player | null>(null);
 
   const [cameraProps] = useState(() => {
     const mobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -137,6 +139,13 @@ export default function GameScene() {
       fov: mobile ? 54 : 42,
     };
   });
+
+  // ── Delayed win overlay — waits for piece animation to finish ────────────────
+  useEffect(() => {
+    if (!gameState.winner) { setDisplayWinner(null); return; }
+    const id = window.setTimeout(() => setDisplayWinner(gameState.winner), 1400);
+    return () => window.clearTimeout(id);
+  }, [gameState.winner]);
 
   // ── AI turn trigger ──────────────────────────────────────────────────────────
   // Fires whenever it becomes black's turn in AI mode.
@@ -253,6 +262,8 @@ export default function GameScene() {
           enablePan={false}
           dampingFactor={0.06}
           enableDamping
+          autoRotate={gameMode === null}
+          autoRotateSpeed={0.6}
         />
       </Canvas>
 
@@ -261,6 +272,7 @@ export default function GameScene() {
         gameMode={gameMode}
         aiThinking={aiThinking}
         difficulty={difficulty}
+        winner={displayWinner}
         onReset={handleReset}
         onChangeMode={handleChangeMode}
         onSelectMode={handleSelectMode}

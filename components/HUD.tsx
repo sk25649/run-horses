@@ -1,6 +1,6 @@
 'use client';
 
-import { GameState, GameMode, Difficulty, canLJump, getTerrain, rowLabel, colLabel } from '@/lib/gameLogic';
+import { GameState, GameMode, Difficulty, Player, canLJump, getTerrain, rowLabel, colLabel } from '@/lib/gameLogic';
 import { CSSProperties, useState, useEffect } from 'react';
 
 // ─── Shared panel styles ──────────────────────────────────────────────────────
@@ -68,6 +68,7 @@ interface HUDProps {
   gameMode:     GameMode | null;
   aiThinking:   boolean;
   difficulty:   Difficulty;
+  winner:       Player | null;
   onReset:      () => void;
   onChangeMode: () => void;
   onSelectMode: (mode: GameMode, diff?: Difficulty) => void;
@@ -79,11 +80,12 @@ export default function HUD({
   gameMode,
   aiThinking,
   difficulty,
+  winner,
   onReset,
   onChangeMode,
   onSelectMode,
 }: HUDProps) {
-  const { currentTurn, selectedCell, winner } = gameState;
+  const { currentTurn, selectedCell } = gameState;
 
   const terrainLabel = selectedCell
     ? getTerrain(selectedCell[0], selectedCell[1]).toUpperCase()
@@ -283,8 +285,8 @@ export default function HUD({
             position: 'fixed', inset: 0,
             display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(4,4,14,0.92)',
-            backdropFilter: 'blur(8px)',
+            background: 'rgba(4,4,14,0.72)',
+            backdropFilter: 'blur(4px)',
             zIndex: 60,
           }}
         >
@@ -425,24 +427,19 @@ export default function HUD({
           {/* Win headline changes based on mode */}
           <div
             style={{
-              fontSize: isMobile ? 38 : 72, fontWeight: 900, letterSpacing: isMobile ? 2 : 4, marginBottom: 12,
+              fontSize: isMobile ? 28 : 52, fontWeight: 900, letterSpacing: isMobile ? 1 : 3, marginBottom: 16,
               color: winner === 'white' ? '#e8e8e8' : '#aaaacc',
               textShadow: '0 0 60px rgba(0,255,200,0.7)',
               textAlign: 'center',
             }}
           >
             {gameMode === 'ai'
-              ? winner === 'white' ? '○ YOU WIN!' : '● AI WINS!'
-              : winner === 'white' ? '○ WHITE WINS!' : '● BLACK WINS!'}
+              ? winner === 'white' ? 'YOU claimed the Oasis!' : 'AI claimed the Oasis!'
+              : `${winner === 'white' ? 'WHITE' : 'BLACK'} claimed the Oasis!`}
           </div>
 
-          <div style={{ color: '#00ffcc', fontSize: 18, letterSpacing: 6, marginBottom: 10 }}>
-            OASIS REACHED
-          </div>
-          <div style={{ color: '#333355', fontSize: 13, letterSpacing: 2, marginBottom: 44 }}>
-            {gameMode === 'ai' && winner === 'black'
-              ? 'THE AI CLAIMS f6'
-              : `${winner!.toUpperCase()} TEAM CLAIMS f6`}
+          <div style={{ color: '#00ffcc', fontSize: isMobile ? 12 : 16, letterSpacing: 6, marginBottom: 36, textAlign: 'center' }}>
+            ◈ f6 REACHED
           </div>
 
           <div style={{ display: 'flex', gap: 16 }}>
