@@ -208,12 +208,36 @@ export default function HUD({
   }, []);
 
   const [copied, setCopied] = useState(false);
-  const handleShare = async () => {
-    const url  = window.location.href;
-    const data = { title: 'Run Horses!', text: 'Race your horses to the Oasis — play Run Horses! 3D', url };
-    track('share_clicked', { method: (typeof navigator.share === 'function' && navigator.canShare?.(data)) ? 'native' : 'clipboard' });
-    if (typeof navigator.share === 'function' && navigator.canShare?.(data)) {
-      await navigator.share(data);
+  const handleShare = async (context: 'home' | 'win' = 'home') => {
+    const url = window.location.href;
+    const isWin = context === 'win';
+    const text = isWin
+      ? `I just claimed the Oasis in Run Horses! 🏆 Think you can beat me?`
+      : 'Race your horses to the Oasis — play Run Horses! 3D';
+
+    let shareData: ShareData = { title: 'Run Horses!', text, url };
+
+    // For win shares, try to attach the 3D canvas as a screenshot
+    if (isWin) {
+      try {
+        const canvas = document.querySelector('canvas');
+        if (canvas) {
+          const blob = await new Promise<Blob | null>(resolve =>
+            (canvas as HTMLCanvasElement).toBlob(resolve, 'image/png')
+          );
+          if (blob) {
+            const file = new File([blob], 'run-horses-win.png', { type: 'image/png' });
+            const withFile = { ...shareData, files: [file] };
+            if (navigator.canShare?.(withFile)) shareData = withFile;
+          }
+        }
+      } catch { /* fall through to text-only share */ }
+    }
+
+    const method = (typeof navigator.share === 'function' && navigator.canShare?.(shareData)) ? 'native' : 'clipboard';
+    track('share_clicked', { method, context });
+    if (typeof navigator.share === 'function' && navigator.canShare?.(shareData)) {
+      await navigator.share(shareData);
     } else {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -747,7 +771,7 @@ export default function HUD({
 
           {/* Share */}
           <button
-            onClick={handleShare}
+            onClick={() => handleShare('home')}
             style={{
               marginTop: 24,
               background: "transparent",
@@ -821,8 +845,8 @@ export default function HUD({
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
             <GhostButton onClick={onReset}>PLAY AGAIN</GhostButton>
-            <GhostButton onClick={handleShare} color="#aa44ff" small>
-              {copied ? "COPIED!" : "SHARE"}
+            <GhostButton onClick={() => handleShare('win')} color="#aa44ff" small>
+              {copied ? "COPIED!" : "SHARE WIN"}
             </GhostButton>
             <GhostButton onClick={onChangeMode} color="#555577" small>
               CHANGE MODE

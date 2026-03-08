@@ -268,7 +268,7 @@ export default function GameScene() {
       <Canvas
         camera={{ position: cameraProps.position, fov: cameraProps.fov }}
         shadows
-        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1 }}
+        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1, preserveDrawingBuffer: true }}
       >
         {/* ── Lighting ────────────────────────────────────────────────── */}
         <ambientLight intensity={0.18} color="#0d0d2a" />
