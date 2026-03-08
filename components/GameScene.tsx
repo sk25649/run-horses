@@ -14,6 +14,7 @@ import {
   applyMove,
   getBestAIMove,
 } from '@/lib/gameLogic';
+import { track } from '@vercel/analytics';
 import { gridToWorld } from './Board';
 import Board from './Board';
 import Pieces from './Pieces';
@@ -143,7 +144,10 @@ export default function GameScene() {
   // ── Delayed win overlay — waits for piece animation to finish ────────────────
   useEffect(() => {
     if (!gameState.winner) { setDisplayWinner(null); return; }
-    const id = window.setTimeout(() => setDisplayWinner(gameState.winner), 1400);
+    const id = window.setTimeout(() => {
+      setDisplayWinner(gameState.winner);
+      track('game_won', { winner: gameState.winner!, mode: gameMode ?? 'pvp', difficulty });
+    }, 1400);
     return () => window.clearTimeout(id);
   }, [gameState.winner]);
 
@@ -203,9 +207,11 @@ export default function GameScene() {
   };
 
   const handleSelectMode = (mode: GameMode, diff?: Difficulty) => {
+    const d = diff ?? difficulty;
     if (diff) setDifficulty(diff);
     setGameState(createInitialState());
     setGameMode(mode);
+    track('game_started', { mode, difficulty: mode === 'ai' ? d : 'pvp' });
   };
 
   return (

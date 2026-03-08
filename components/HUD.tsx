@@ -10,6 +10,7 @@ import {
   rowLabel,
   colLabel,
 } from "@/lib/gameLogic";
+import { track } from "@vercel/analytics";
 import { CSSProperties, useState, useEffect, useRef } from "react";
 
 // ─── Confetti ─────────────────────────────────────────────────────────────────
@@ -210,6 +211,7 @@ export default function HUD({
   const handleShare = async () => {
     const url  = window.location.href;
     const data = { title: 'Run Horses!', text: 'Race your horses to the Oasis — play Run Horses! 3D', url };
+    track('share_clicked', { method: (navigator.share && navigator.canShare?.(data)) ? 'native' : 'clipboard' });
     if (navigator.share && navigator.canShare?.(data)) {
       await navigator.share(data);
     } else {
