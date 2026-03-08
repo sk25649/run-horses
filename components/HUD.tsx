@@ -211,8 +211,8 @@ export default function HUD({
   const handleShare = async () => {
     const url  = window.location.href;
     const data = { title: 'Run Horses!', text: 'Race your horses to the Oasis — play Run Horses! 3D', url };
-    track('share_clicked', { method: (navigator.share && navigator.canShare?.(data)) ? 'native' : 'clipboard' });
-    if (navigator.share && navigator.canShare?.(data)) {
+    track('share_clicked', { method: (typeof navigator.share === 'function' && navigator.canShare?.(data)) ? 'native' : 'clipboard' });
+    if (typeof navigator.share === 'function' && navigator.canShare?.(data)) {
       await navigator.share(data);
     } else {
       await navigator.clipboard.writeText(url);
