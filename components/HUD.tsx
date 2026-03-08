@@ -20,21 +20,29 @@ function Confetti() {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    canvas.width  = window.innerWidth;
+    canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    const colors = ["#00ffcc", "#f5c842", "#ff4466", "#4488ff", "#aa44ff", "#ffffff", "#ffaa00"];
+    const colors = [
+      "#00ffcc",
+      "#f5c842",
+      "#ff4466",
+      "#4488ff",
+      "#aa44ff",
+      "#ffffff",
+      "#ffaa00",
+    ];
     const pieces = Array.from({ length: 140 }, () => ({
-      x:        Math.random() * canvas.width,
-      y:        Math.random() * canvas.height * 0.4 - canvas.height * 0.2,
-      w:        Math.random() * 11 + 5,
-      h:        Math.random() * 5  + 3,
-      color:    colors[Math.floor(Math.random() * colors.length)],
-      vy:       Math.random() * 3.5 + 1.5,
-      vx:       (Math.random() - 0.5) * 1.8,
-      rot:      Math.random() * Math.PI * 2,
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height * 0.4 - canvas.height * 0.2,
+      w: Math.random() * 11 + 5,
+      h: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      vy: Math.random() * 3.5 + 1.5,
+      vx: (Math.random() - 0.5) * 1.8,
+      rot: Math.random() * Math.PI * 2,
       rotSpeed: (Math.random() - 0.5) * 0.15,
-      opacity:  1,
+      opacity: 1,
     }));
 
     const start = Date.now();
@@ -42,12 +50,16 @@ function Confetti() {
     const draw = () => {
       const elapsed = Date.now() - start;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      pieces.forEach(p => {
-        p.y   += p.vy;
-        p.x   += p.vx;
+      pieces.forEach((p) => {
+        p.y += p.vy;
+        p.x += p.vx;
         p.rot += p.rotSpeed;
-        if (p.y > canvas.height) { p.y = -20; p.x = Math.random() * canvas.width; }
-        p.opacity = elapsed > 3200 ? Math.max(0, 1 - (elapsed - 3200) / 1200) : 1;
+        if (p.y > canvas.height) {
+          p.y = -20;
+          p.x = Math.random() * canvas.width;
+        }
+        p.opacity =
+          elapsed > 3200 ? Math.max(0, 1 - (elapsed - 3200) / 1200) : 1;
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.rot);
@@ -478,10 +490,24 @@ export default function HUD({
         >
           {/* Logo */}
           <div style={{ marginBottom: 4, textAlign: "center" }}>
-            <div style={{ fontSize: isMobile ? 28 : 44, fontWeight: 900, color: "#ffffff", letterSpacing: isMobile ? 3 : 6 }}>
+            <div
+              style={{
+                fontSize: isMobile ? 28 : 44,
+                fontWeight: 900,
+                color: "#ffffff",
+                letterSpacing: isMobile ? 3 : 6,
+              }}
+            >
               RUN HORSES!
             </div>
-            <div style={{ fontSize: isMobile ? 10 : 11, color: "#00ffcc", letterSpacing: isMobile ? 4 : 8, marginTop: 4 }}>
+            <div
+              style={{
+                fontSize: isMobile ? 10 : 11,
+                color: "#00ffcc",
+                letterSpacing: isMobile ? 4 : 8,
+                marginTop: 4,
+              }}
+            >
               TACTICAL BOARD GAME
             </div>
           </div>
@@ -498,23 +524,76 @@ export default function HUD({
               maxWidth: 560,
             }}
           >
-            <div style={{ color: "#555577", fontSize: 9, letterSpacing: 4, marginBottom: 12, textTransform: "uppercase" }}>
+            <div
+              style={{
+                color: "#555577",
+                fontSize: 9,
+                letterSpacing: 4,
+                marginBottom: 12,
+                textTransform: "uppercase",
+              }}
+            >
               How to Play
             </div>
             {[
-              { label: "SLIDE", color: "#70c0ff", desc: "Pieces glide horizontally or vertically to the last open cell in that direction." },
-              { label: "L-JUMP", color: "#f5c842", desc: "On desert (brown) tiles only — jump in an L-shape to any other desert tile." },
-              { label: "GOAL", color: "#00ffcc", desc: "First player to land a piece on the glowing Oasis wins." },
+              {
+                label: "SLIDE",
+                color: "#70c0ff",
+                desc: "Pieces glide horizontally or vertically to the last open cell in that direction.",
+              },
+              {
+                label: "L-JUMP",
+                color: "#f5c842",
+                desc: "On desert (brown) tiles only — jump in an L-shape to any other desert tile.",
+              },
+              {
+                label: "GOAL",
+                color: "#00ffcc",
+                desc: "First player to land a piece on the glowing Oasis wins.",
+              },
             ].map(({ label, color, desc }) => (
-              <div key={label} style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 10 }}>
-                <span style={{ color, fontSize: 10, fontWeight: 800, letterSpacing: 2, whiteSpace: "nowrap", paddingTop: 1, minWidth: 56 }}>{label}</span>
-                <span style={{ color: "#8888aa", fontSize: 11, lineHeight: 1.6 }}>{desc}</span>
+              <div
+                key={label}
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "flex-start",
+                  marginBottom: 10,
+                }}
+              >
+                <span
+                  style={{
+                    color,
+                    fontSize: 10,
+                    fontWeight: 800,
+                    letterSpacing: 2,
+                    whiteSpace: "nowrap",
+                    paddingTop: 1,
+                    minWidth: 56,
+                  }}
+                >
+                  {label}
+                </span>
+                <span
+                  style={{ color: "#8888aa", fontSize: 11, lineHeight: 1.6 }}
+                >
+                  {desc}
+                </span>
               </div>
             ))}
           </div>
 
           {/* ── Mode cards ───────────────────────────────────────────────── */}
-          <div style={{ color: "#555577", fontSize: 10, letterSpacing: 4, marginBottom: 16 }}>CHOOSE YOUR MODE</div>
+          <div
+            style={{
+              color: "#555577",
+              fontSize: 10,
+              letterSpacing: 4,
+              marginBottom: 16,
+            }}
+          >
+            CHOOSE YOUR MODE
+          </div>
 
           <div
             style={{
@@ -538,13 +617,26 @@ export default function HUD({
                 minWidth: isMobile ? undefined : 210,
               }}
             >
-              <div style={{ color: "#ffffff", fontSize: 13, fontWeight: 800, letterSpacing: 2, marginBottom: 14 }}>
+              <div
+                style={{
+                  color: "#ffffff",
+                  fontSize: 13,
+                  fontWeight: 800,
+                  letterSpacing: 2,
+                  marginBottom: 14,
+                  textAlign: "center",
+                }}
+              >
                 VS AI
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {(["easy", "medium", "hard"] as Difficulty[]).map((d) => {
-                  const color = d === "easy" ? "#44dd88" : d === "medium" ? "#f5c842" : "#ff4466";
-                  const desc  = d === "easy" ? "Random moves" : d === "medium" ? "2-ply tactical" : "4-ply strategic";
+                  const color =
+                    d === "easy"
+                      ? "#44dd88"
+                      : d === "medium"
+                        ? "#f5c842"
+                        : "#ff4466";
                   return (
                     <button
                       key={d}
@@ -566,16 +658,25 @@ export default function HUD({
                         transition: "background 0.15s, border-color 0.15s",
                       }}
                       onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background = `${color}28`;
-                        (e.currentTarget as HTMLButtonElement).style.borderColor = color;
+                        (
+                          e.currentTarget as HTMLButtonElement
+                        ).style.background = `${color}28`;
+                        (
+                          e.currentTarget as HTMLButtonElement
+                        ).style.borderColor = color;
                       }}
                       onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background = `${color}11`;
-                        (e.currentTarget as HTMLButtonElement).style.borderColor = `${color}55`;
+                        (
+                          e.currentTarget as HTMLButtonElement
+                        ).style.background = `${color}11`;
+                        (
+                          e.currentTarget as HTMLButtonElement
+                        ).style.borderColor = `${color}55`;
                       }}
                     >
-                      <span>{d.toUpperCase()}</span>
-                      <span style={{ fontSize: 9, fontWeight: 400, opacity: 0.65, letterSpacing: 1 }}>{desc}</span>
+                      <span style={{ textAlign: "center", width: "100%" }}>
+                        {d.toUpperCase()}
+                      </span>
                     </button>
                   );
                 })}
@@ -600,13 +701,23 @@ export default function HUD({
                 alignSelf: "stretch",
               }}
             >
-              <div style={{ color: "#ffffff", fontSize: 13, fontWeight: 800, letterSpacing: 2, marginBottom: 12 }}>
+              <div
+                style={{
+                  color: "#ffffff",
+                  fontSize: 13,
+                  fontWeight: 800,
+                  letterSpacing: 2,
+                  marginBottom: 12,
+                }}
+              >
                 2 PLAYERS
               </div>
               <div style={{ color: "#666688", fontSize: 11, lineHeight: 1.8 }}>
-                Pass &amp; play locally.<br />
-                White vs Black.<br />
-                First to f6 wins.
+                Pass &amp; play locally.
+                <br />
+                White vs Black.
+                <br />
+                First to Oasis wins.
               </div>
             </button>
           </div>
