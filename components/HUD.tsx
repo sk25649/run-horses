@@ -206,6 +206,19 @@ export default function HUD({
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  const [copied, setCopied] = useState(false);
+  const handleShare = async () => {
+    const url  = window.location.href;
+    const data = { title: 'Run Horses!', text: 'Race your horses to the Oasis — play Run Horses! 3D', url };
+    if (navigator.share && navigator.canShare?.(data)) {
+      await navigator.share(data);
+    } else {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   // Human-readable turn label
   const isAITurn = gameMode === "ai" && currentTurn === "black";
   const turnLabel =
@@ -729,6 +742,28 @@ export default function HUD({
               </div>
             </button>
           </div>
+
+          {/* Share */}
+          <button
+            onClick={handleShare}
+            style={{
+              marginTop: 24,
+              background: "transparent",
+              border: "1.5px solid rgba(255,255,255,0.18)",
+              color: copied ? "#00ffcc" : "#666688",
+              borderColor: copied ? "#00ffcc" : "rgba(255,255,255,0.18)",
+              borderRadius: 8,
+              padding: "10px 28px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 3,
+              transition: "color 0.2s, border-color 0.2s",
+            }}
+          >
+            {copied ? "LINK COPIED!" : "SHARE WITH FRIENDS"}
+          </button>
         </div>
       )}
 
@@ -782,8 +817,11 @@ export default function HUD({
             ◈ f6 REACHED
           </div>
 
-          <div style={{ display: "flex", gap: 16 }}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
             <GhostButton onClick={onReset}>PLAY AGAIN</GhostButton>
+            <GhostButton onClick={handleShare} color="#aa44ff" small>
+              {copied ? "COPIED!" : "SHARE"}
+            </GhostButton>
             <GhostButton onClick={onChangeMode} color="#555577" small>
               CHANGE MODE
             </GhostButton>
