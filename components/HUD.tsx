@@ -252,11 +252,11 @@ export default function HUD({
   const turnLabel =
     gameMode === "ai"
       ? currentTurn === "white"
-        ? "○ YOU (WHITE)"
-        : "● AI (BLACK)"
+        ? "○ YOU (BLUE)"
+        : "● AI (ORANGE)"
       : currentTurn === "white"
-        ? "○ WHITE"
-        : "● BLACK";
+        ? "○ BLUE"
+        : "● ORANGE";
   const turnColor = currentTurn === "white" ? "#2277ff" : "#ff8800";
 
   return (
@@ -830,7 +830,7 @@ export default function HUD({
               ? winner === "white"
                 ? "YOU claimed the Oasis!"
                 : "AI claimed the Oasis!"
-              : `${winner === "white" ? "WHITE" : "BLACK"} claimed the Oasis!`}
+              : `${winner === "white" ? "BLUE" : "ORANGE"} claimed the Oasis!`}
           </div>
 
           <div
