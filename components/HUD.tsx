@@ -893,93 +893,131 @@ export default function HUD({
             backdropFilter: "blur(6px)",
           }}
         >
-          {/* Win headline changes based on mode */}
-          <div
-            style={{
-              fontSize: isMobile ? 28 : 52,
-              fontWeight: 900,
-              letterSpacing: isMobile ? 1 : 3,
-              marginBottom: 16,
-              color: winner === "white" ? "#2277ff" : "#ff8800",
-              textShadow: "0 0 60px rgba(0,255,200,0.7)",
-              textAlign: "center",
-            }}
-          >
-            {gameMode === "ai"
-              ? winner === "white"
-                ? "YOU claimed the Oasis!"
-                : "AI claimed the Oasis!"
-              : `${winner === "white" ? "BLUE" : "ORANGE"} claimed the Oasis!`}
-          </div>
+          {/* ── Win / lose headline ──────────────────────────────────────── */}
+          {(() => {
+            const playerWon = winner === "white";
+            const isChallenge = !!challengeData;
+            const beatChallenge = isChallenge && playerWon && gameState.moveCount < challengeData!.moves;
+            const tiedChallenge = isChallenge && playerWon && gameState.moveCount === challengeData!.moves;
 
-          <div
-            style={{
-              color: "#00ffcc",
-              fontSize: isMobile ? 12 : 16,
-              letterSpacing: 6,
-              marginBottom: 36,
-              textAlign: "center",
-            }}
-          >
-            CONGRATS! YOU WON!
-          </div>
+            const headline = isChallenge
+              ? playerWon
+                ? beatChallenge
+                  ? `You beat ${challengeData!.name}! 🎉`
+                  : tiedChallenge
+                    ? `Tied with ${challengeData!.name}!`
+                    : `${challengeData!.name}'s score stands`
+                : `${challengeData!.name}'s challenge stands`
+              : gameMode === "ai"
+                ? playerWon ? "YOU claimed the Oasis!" : "AI claimed the Oasis!"
+                : `${playerWon ? "BLUE" : "ORANGE"} claimed the Oasis!`;
 
-          {/* Move count + streak */}
-          <div style={{ display: "flex", gap: isMobile ? 16 : 28, marginBottom: 32, flexWrap: "wrap", justifyContent: "center" }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ ...lbl, fontSize: 9 }}>MOVES TAKEN</div>
-              <div style={{ fontSize: isMobile ? 28 : 40, fontWeight: 900, color: "#00ffcc", letterSpacing: 2 }}>
-                {gameState.moveCount}
+            const subline = isChallenge
+              ? playerWon
+                ? beatChallenge
+                  ? `${challengeData!.name}: ${challengeData!.moves} moves  →  You: ${gameState.moveCount} moves`
+                  : tiedChallenge
+                    ? `Both finished in ${gameState.moveCount} moves`
+                    : `${challengeData!.name}: ${challengeData!.moves} moves  —  You: ${gameState.moveCount} moves`
+                : `${challengeData!.name} set ${challengeData!.moves} moves. Try again!`
+              : playerWon ? "CONGRATS! YOU WON!" : "BETTER LUCK NEXT TIME";
+
+            const headlineColor = isChallenge
+              ? beatChallenge ? "#00ffcc" : tiedChallenge ? "#f5c842" : "#ff6666"
+              : playerWon ? "#2277ff" : "#ff8800";
+
+            return (
+              <>
+                <div style={{
+                  fontSize: isMobile ? 24 : 46,
+                  fontWeight: 900,
+                  letterSpacing: isMobile ? 1 : 2,
+                  marginBottom: 12,
+                  color: headlineColor,
+                  textShadow: "0 0 60px rgba(0,255,200,0.5)",
+                  textAlign: "center",
+                  padding: "0 16px",
+                }}>
+                  {headline}
+                </div>
+                <div style={{
+                  color: "#888899",
+                  fontSize: isMobile ? 12 : 15,
+                  letterSpacing: 2,
+                  marginBottom: 28,
+                  textAlign: "center",
+                }}>
+                  {subline}
+                </div>
+              </>
+            );
+          })()}
+
+          {/* ── Stats row ────────────────────────────────────────────────── */}
+          {winner === "white" && (
+            <div style={{ display: "flex", gap: isMobile ? 16 : 28, marginBottom: 28, flexWrap: "wrap", justifyContent: "center" }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ ...lbl, fontSize: 9 }}>MOVES TAKEN</div>
+                <div style={{ fontSize: isMobile ? 28 : 40, fontWeight: 900, color: "#00ffcc", letterSpacing: 2 }}>
+                  {gameState.moveCount}
+                </div>
               </div>
+              {gameMode === "ai" && streak > 0 && (
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ ...lbl, fontSize: 9 }}>WIN STREAK</div>
+                  <div style={{ fontSize: isMobile ? 28 : 40, fontWeight: 900, color: "#f5c842", letterSpacing: 2 }}>
+                    {streak}🔥
+                  </div>
+                </div>
+              )}
+              {gameMode === "ai" && bestStreak > 1 && (
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ ...lbl, fontSize: 9 }}>BEST</div>
+                  <div style={{ fontSize: isMobile ? 20 : 28, fontWeight: 700, color: "#888899", letterSpacing: 2 }}>
+                    {bestStreak}
+                  </div>
+                </div>
+              )}
             </div>
-            {gameMode === "ai" && winner === "white" && streak > 0 && (
-              <div style={{ textAlign: "center" }}>
-                <div style={{ ...lbl, fontSize: 9 }}>WIN STREAK</div>
-                <div style={{ fontSize: isMobile ? 28 : 40, fontWeight: 900, color: "#f5c842", letterSpacing: 2 }}>
-                  {streak}🔥
-                </div>
-              </div>
-            )}
-            {gameMode === "ai" && winner === "white" && bestStreak > 1 && (
-              <div style={{ textAlign: "center" }}>
-                <div style={{ ...lbl, fontSize: 9 }}>BEST STREAK</div>
-                <div style={{ fontSize: isMobile ? 20 : 28, fontWeight: 700, color: "#888899", letterSpacing: 2 }}>
-                  {bestStreak}
-                </div>
-              </div>
-            )}
-          </div>
+          )}
 
-          {/* Name input for challenge link */}
-          <div style={{ marginBottom: 20, textAlign: "center" }}>
-            <div style={{ ...lbl, fontSize: 9, marginBottom: 8 }}>YOUR NAME (for challenge link)</div>
-            <input
-              value={playerName}
-              onChange={e => setPlayerName(e.target.value)}
-              placeholder="Anonymous"
-              maxLength={20}
-              style={{
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.15)",
-                borderRadius: 6,
-                color: "#ffffff",
-                fontFamily: "inherit",
-                fontSize: 13,
-                fontWeight: 700,
-                letterSpacing: 2,
-                padding: "8px 16px",
-                textAlign: "center",
-                outline: "none",
-                width: isMobile ? "70vw" : 220,
-              }}
-            />
-          </div>
+          {/* ── Name input (only show when player won) ───────────────────── */}
+          {winner === "white" && (
+            <div style={{ marginBottom: 20, textAlign: "center" }}>
+              <div style={{ ...lbl, fontSize: 9, marginBottom: 8 }}>YOUR NAME</div>
+              <input
+                value={playerName}
+                onChange={e => setPlayerName(e.target.value)}
+                placeholder="Anonymous"
+                maxLength={20}
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  borderRadius: 6,
+                  color: "#ffffff",
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  letterSpacing: 2,
+                  padding: "8px 16px",
+                  textAlign: "center",
+                  outline: "none",
+                  width: isMobile ? "70vw" : 220,
+                }}
+              />
+            </div>
+          )}
 
+          {/* ── Buttons ──────────────────────────────────────────────────── */}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-            <GhostButton onClick={onReset}>PLAY AGAIN</GhostButton>
-            <GhostButton onClick={() => handleShare('win')} color="#aa44ff" small>
-              {sharing ? "..." : copied ? "COPIED!" : "CHALLENGE FRIENDS"}
+            <GhostButton onClick={onReset}>
+              {winner === "white" ? "PLAY AGAIN" : "TRY AGAIN"}
             </GhostButton>
+            {winner === "white" && (
+              <GhostButton onClick={() => handleShare('win')} color="#aa44ff" small>
+                {sharing ? "..." : copied ? "COPIED!" : challengeData ? `COUNTER-CHALLENGE ${challengeData.name.toUpperCase()}` : "CHALLENGE FRIENDS"}
+              </GhostButton>
+            )}
             <GhostButton onClick={onChangeMode} color="#555577" small>
               CHANGE MODE
             </GhostButton>
