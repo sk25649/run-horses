@@ -1,0 +1,5 @@
+{
+  "name": "run-horses",
+  "main": "party/game.ts",
+  "compatibilityDate": "2023-11-20"
+}

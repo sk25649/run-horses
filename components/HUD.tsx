@@ -10,6 +10,7 @@ import {
   rowLabel,
   colLabel,
 } from "@/lib/gameLogic";
+import type { OnlineStatus, OnlinePlayer } from "@/hooks/usePartyGame";
 import { track } from "@vercel/analytics";
 import { CSSProperties, useState, useEffect, useRef } from "react";
 
@@ -159,6 +160,13 @@ interface HUDProps {
   onReset: () => void;
   onChangeMode: () => void;
   onSelectMode: (mode: GameMode, diff?: Difficulty) => void;
+  // Online mode
+  onlineStatus: OnlineStatus | null;
+  onlineRoomId: string | null;
+  myColor: Player | null;
+  onlinePlayers: OnlinePlayer[];
+  opponentWantsRematch: boolean;
+  onSendRematch: () => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -173,6 +181,12 @@ export default function HUD({
   onReset,
   onChangeMode,
   onSelectMode,
+  onlineStatus,
+  onlineRoomId,
+  myColor,
+  onlinePlayers,
+  opponentWantsRematch,
+  onSendRematch,
 }: HUDProps) {
   const { currentTurn, selectedCell } = gameState;
 
@@ -303,14 +317,19 @@ export default function HUD({
 
   // Human-readable turn label
   const isAITurn = gameMode === "ai" && currentTurn === "black";
+  const opponentInfo = onlinePlayers.find((p) => p.color !== myColor);
   const turnLabel =
-    gameMode === "ai"
-      ? currentTurn === "white"
-        ? "○ YOU (BLUE)"
-        : "● AI (ORANGE)"
-      : currentTurn === "white"
-        ? "○ BLUE"
-        : "● ORANGE";
+    gameMode === "online"
+      ? currentTurn === myColor
+        ? "○ YOUR TURN"
+        : `● ${opponentInfo?.name.toUpperCase() ?? "OPPONENT"}`
+      : gameMode === "ai"
+        ? currentTurn === "white"
+          ? "○ YOU (BLUE)"
+          : "● AI (ORANGE)"
+        : currentTurn === "white"
+          ? "○ BLUE"
+          : "● ORANGE";
   const turnColor = currentTurn === "white" ? "#2277ff" : "#ff8800";
 
   return (
@@ -448,10 +467,33 @@ export default function HUD({
                       ? "#44dd88"
                       : difficulty === "medium"
                         ? "#f5c842"
-                        : "#ff4466",
+                        : difficulty === "hard"
+                          ? "#ff4466"
+                          : "#cc00ff",
                 }}
               >
                 {difficulty.toUpperCase()}
+              </div>
+            </div>
+          )}
+
+          {/* Online status badge */}
+          {gameMode === "online" && (
+            <div style={{ ...panel, flex: "0 0 auto", padding: isMobile ? "7px 12px" : "10px 18px" }}>
+              <div style={{ ...lbl, fontSize: isMobile ? 8 : 9 }}>ONLINE</div>
+              <div style={{
+                ...val,
+                fontSize: isMobile ? 11 : 13,
+                color: onlineStatus === "playing" ? "#00ffcc"
+                  : onlineStatus === "waiting" ? "#f5c842"
+                  : onlineStatus === "opponent_left" ? "#ff4466"
+                  : "#666688",
+              }}>
+                {onlineStatus === "playing"
+                  ? myColor === "white" ? "BLUE" : "ORANGE"
+                  : onlineStatus === "waiting" ? "WAITING"
+                  : onlineStatus === "opponent_left" ? "DISCONNECTED"
+                  : "CONNECTING"}
               </div>
             </div>
           )}
@@ -750,13 +792,15 @@ export default function HUD({
                 VS AI
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {(["easy", "medium", "hard"] as Difficulty[]).map((d) => {
+                {(["easy", "medium", "hard", "impossible"] as Difficulty[]).map((d) => {
                   const color =
                     d === "easy"
                       ? "#44dd88"
                       : d === "medium"
                         ? "#f5c842"
-                        : "#ff4466";
+                        : d === "hard"
+                          ? "#ff4466"
+                          : "#cc00ff";
                   return (
                     <button
                       key={d}
@@ -848,6 +892,48 @@ export default function HUD({
                 First to Oasis wins.
               </div>
             </button>
+
+            {/* Online card */}
+            <button
+              className="mode-card"
+              onClick={() => onSelectMode("online")}
+              style={{
+                background: "rgba(4,4,14,0.92)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                borderRadius: 12,
+                padding: isMobile ? "18px 20px" : "24px 28px",
+                cursor: "pointer",
+                textAlign: "left",
+                width: isMobile ? "100%" : undefined,
+                minWidth: isMobile ? undefined : 170,
+                fontFamily: "inherit",
+                transition: "border-color 0.15s",
+                alignSelf: "stretch",
+              }}
+            >
+              <div style={{
+                color: "#ffffff",
+                fontSize: 13,
+                fontWeight: 800,
+                letterSpacing: 2,
+                marginBottom: 12,
+                textAlign: "center",
+              }}>
+                ONLINE
+              </div>
+              <div style={{
+                color: "#666688",
+                fontSize: 11,
+                lineHeight: 1.8,
+                textAlign: "center",
+              }}>
+                Play a friend online.
+                <br />
+                Share link to invite.
+                <br />
+                Real-time multiplayer.
+              </div>
+            </button>
           </div>
 
           {/* Share */}
@@ -908,9 +994,13 @@ export default function HUD({
                     ? `Tied with ${challengeData!.name}!`
                     : `${challengeData!.name}'s score stands`
                 : `${challengeData!.name}'s challenge stands`
-              : gameMode === "ai"
-                ? playerWon ? "YOU claimed the Oasis!" : "AI claimed the Oasis!"
-                : `${playerWon ? "BLUE" : "ORANGE"} claimed the Oasis!`;
+              : gameMode === "online"
+                ? playerWon === (winner === myColor)
+                  ? "YOU claimed the Oasis!"
+                  : `${opponentInfo?.name ?? "Opponent"} claimed the Oasis!`
+                : gameMode === "ai"
+                  ? playerWon ? "YOU claimed the Oasis!" : "AI claimed the Oasis!"
+                  : `${playerWon ? "BLUE" : "ORANGE"} claimed the Oasis!`;
 
             const subline = isChallenge
               ? playerWon
@@ -920,7 +1010,9 @@ export default function HUD({
                     ? `Both finished in ${gameState.moveCount} moves`
                     : `${challengeData!.name}: ${challengeData!.moves} moves  —  You: ${gameState.moveCount} moves`
                 : `${challengeData!.name} set ${challengeData!.moves} moves. Try again!`
-              : playerWon ? "CONGRATS! YOU WON!" : "BETTER LUCK NEXT TIME";
+              : gameMode === "online"
+                ? winner === myColor ? "CONGRATS! YOU WON!" : "BETTER LUCK NEXT TIME"
+                : playerWon ? "CONGRATS! YOU WON!" : "BETTER LUCK NEXT TIME";
 
             const headlineColor = isChallenge
               ? beatChallenge ? "#00ffcc" : tiedChallenge ? "#f5c842" : "#ff6666"
@@ -1010,10 +1102,16 @@ export default function HUD({
 
           {/* ── Buttons ──────────────────────────────────────────────────── */}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-            <GhostButton onClick={onReset}>
-              {winner === "white" ? "PLAY AGAIN" : "TRY AGAIN"}
-            </GhostButton>
-            {winner === "white" && (
+            {gameMode === "online" ? (
+              <GhostButton onClick={onSendRematch} color="#f5c842">
+                {opponentWantsRematch ? "ACCEPT REMATCH" : "REMATCH"}
+              </GhostButton>
+            ) : (
+              <GhostButton onClick={onReset}>
+                {winner === "white" ? "PLAY AGAIN" : "TRY AGAIN"}
+              </GhostButton>
+            )}
+            {winner === "white" && gameMode !== "online" && (
               <GhostButton onClick={() => handleShare('win')} color="#aa44ff" small>
                 {sharing ? "..." : copied ? "COPIED!" : challengeData ? `COUNTER-CHALLENGE ${challengeData.name.toUpperCase()}` : "CHALLENGE FRIENDS"}
               </GhostButton>
@@ -1022,6 +1120,138 @@ export default function HUD({
               CHANGE MODE
             </GhostButton>
           </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          ONLINE — WAITING FOR OPPONENT OVERLAY
+      ═════════════════════════════════════════════════════════════════════ */}
+      {gameMode === "online" && onlineStatus === "waiting" && !winner && (
+        <div
+          className="mode-fade"
+          style={{
+            position: "fixed",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(4,4,14,0.82)",
+            backdropFilter: "blur(6px)",
+            zIndex: 50,
+          }}
+        >
+          <div style={{
+            fontSize: isMobile ? 20 : 30,
+            fontWeight: 900,
+            color: "#ffffff",
+            letterSpacing: 3,
+            marginBottom: 8,
+          }}>
+            WAITING FOR OPPONENT
+          </div>
+          <div style={{ color: "#555577", fontSize: 11, letterSpacing: 3, marginBottom: 32 }}>
+            SHARE THIS LINK TO INVITE
+          </div>
+
+          {/* Share link box */}
+          {onlineRoomId && (() => {
+            const link = `${typeof window !== "undefined" ? window.location.origin : ""}/?r=${onlineRoomId}`;
+            return (
+              <div style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 8,
+                padding: "12px 20px",
+                marginBottom: 16,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                maxWidth: isMobile ? "85vw" : 420,
+                width: "100%",
+              }}>
+                <span style={{
+                  color: "#00ffcc",
+                  fontSize: isMobile ? 11 : 13,
+                  fontWeight: 700,
+                  letterSpacing: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  flex: 1,
+                }}>
+                  {link}
+                </span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(link).catch(() => {});
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  style={{
+                    background: copied ? "#00ffcc22" : "transparent",
+                    border: `1px solid ${copied ? "#00ffcc" : "rgba(255,255,255,0.2)"}`,
+                    color: copied ? "#00ffcc" : "#888899",
+                    borderRadius: 5,
+                    padding: "6px 14px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: 2,
+                    whiteSpace: "nowrap",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {copied ? "COPIED!" : "COPY"}
+                </button>
+              </div>
+            );
+          })()}
+
+          <div style={{ color: "#444466", fontSize: 10, letterSpacing: 2, marginBottom: 28 }}>
+            ROOM CODE: <span style={{ color: "#666688" }}>{onlineRoomId}</span>
+          </div>
+
+          <GhostButton onClick={onChangeMode} color="#555577" small>
+            CANCEL
+          </GhostButton>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          ONLINE — OPPONENT DISCONNECTED OVERLAY
+      ═════════════════════════════════════════════════════════════════════ */}
+      {gameMode === "online" && onlineStatus === "opponent_left" && !winner && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(4,4,14,0.82)",
+            backdropFilter: "blur(6px)",
+            zIndex: 50,
+          }}
+        >
+          <div style={{
+            fontSize: isMobile ? 22 : 36,
+            fontWeight: 900,
+            color: "#ff4466",
+            letterSpacing: 2,
+            marginBottom: 12,
+            textAlign: "center",
+          }}>
+            OPPONENT DISCONNECTED
+          </div>
+          <div style={{ color: "#666688", fontSize: 13, letterSpacing: 2, marginBottom: 32 }}>
+            They left the game.
+          </div>
+          <GhostButton onClick={onChangeMode} color="#555577" small>
+            BACK TO MENU
+          </GhostButton>
         </div>
       )}
     </>

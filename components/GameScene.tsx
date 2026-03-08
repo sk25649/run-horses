@@ -12,6 +12,7 @@ import {
   createInitialState,
   selectCell,
   applyMove,
+  getValidMoves,
   getBestAIMove,
 } from '@/lib/gameLogic';
 import { track } from '@vercel/analytics';
@@ -20,11 +21,9 @@ import { gridToWorld } from './Board';
 import Board from './Board';
 import Pieces from './Pieces';
 import HUD from './HUD';
+import { usePartyGame } from '@/hooks/usePartyGame';
 
 // ─── Mobile tap handler ───────────────────────────────────────────────────────
-// OrbitControls intercepts pointer events on touch, so we bypass R3F entirely:
-// listen to raw touchend on the canvas DOM element, raycast against the board
-// plane (y=0), and convert the hit point to a grid cell.
 const TILE_GAP = 1.05;
 const BOARD_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
@@ -51,7 +50,6 @@ function MobileTapHandler({ onCellClick }: { onCellClick: (r: number, c: number)
       }
     };
 
-    // ── Mobile: raw touchend (OrbitControls intercepts pointer events on touch) ──
     let lastTouchTime = 0;
     const tap = { x: 0, y: 0, active: false };
 
@@ -67,16 +65,15 @@ function MobileTapHandler({ onCellClick }: { onCellClick: (r: number, c: number)
       lastTouchTime = Date.now();
       const t = e.changedTouches[0];
       const dx = t.clientX - tap.x, dy = t.clientY - tap.y;
-      if (dx * dx + dy * dy > 144) return; // >12px = drag, ignore
+      if (dx * dx + dy * dy > 144) return;
       handleHit(t.clientX, t.clientY);
     };
 
-    // ── Desktop: raw pointer events, bypassing OrbitControls capture ───────────
     let desktopStart = { x: 0, y: 0 };
 
     const onPointerDown = (e: PointerEvent) => {
-      if (e.pointerType === 'touch') return; // handled by touchend above
-      if (Date.now() - lastTouchTime < 500) return; // ignore ghost events after touch
+      if (e.pointerType === 'touch') return;
+      if (Date.now() - lastTouchTime < 500) return;
       desktopStart = { x: e.clientX, y: e.clientY };
     };
 
@@ -84,7 +81,7 @@ function MobileTapHandler({ onCellClick }: { onCellClick: (r: number, c: number)
       if (e.pointerType === 'touch') return;
       if (Date.now() - lastTouchTime < 500) return;
       const dx = e.clientX - desktopStart.x, dy = e.clientY - desktopStart.y;
-      if (dx * dx + dy * dy > 100) return; // >10px = drag, not click
+      if (dx * dx + dy * dy > 100) return;
       handleHit(e.clientX, e.clientY);
     };
 
@@ -162,6 +159,37 @@ export default function GameScene() {
   const [streak, setStreak]         = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
 
+  // ── Online mode state ────────────────────────────────────────────────────────
+  const [onlineRoomId, setOnlineRoomId] = useState<string | null>(null);
+  const [onlineSelection, setOnlineSelection] = useState<{
+    selectedCell: [number, number] | null;
+    validMoves: [number, number][];
+  }>({ selectedCell: null, validMoves: [] });
+
+  // Always call hook — pass null when not in online mode (hook becomes a no-op)
+  const partyGame = usePartyGame(gameMode === 'online' ? onlineRoomId : null);
+
+  // ── Active game state for rendering (online vs local) ────────────────────────
+  const activeGameState: GameState = gameMode === 'online'
+    ? { ...partyGame.gameState, selectedCell: onlineSelection.selectedCell, validMoves: onlineSelection.validMoves }
+    : gameState;
+
+  // Reset selection whenever the server broadcasts a new board position
+  useEffect(() => {
+    if (gameMode === 'online') {
+      setOnlineSelection({ selectedCell: null, validMoves: [] });
+    }
+  }, [gameMode, partyGame.gameState.board]);
+
+  // ── Detect ?r=ROOMID in URL on mount (auto-join) ─────────────────────────────
+  useEffect(() => {
+    const roomId = new URLSearchParams(window.location.search).get('r');
+    if (roomId) {
+      setOnlineRoomId(roomId);
+      setGameMode('online');
+    }
+  }, []);
+
   // Load streak from localStorage on mount
   useEffect(() => {
     const s = parseInt(localStorage.getItem('rh_streak') || '0');
@@ -178,15 +206,15 @@ export default function GameScene() {
     };
   });
 
-  // ── Delayed win overlay — waits for piece animation to finish ────────────────
+  // ── Win detection — local modes ───────────────────────────────────────────────
   useEffect(() => {
+    if (gameMode === 'online') return;
     if (!gameState.winner) { setDisplayWinner(null); return; }
     const id = window.setTimeout(() => {
       setDisplayWinner(gameState.winner);
       playWin();
       track('game_won', { winner: gameState.winner!, mode: gameMode ?? 'pvp', difficulty });
 
-      // Update streak (AI mode only — player = white)
       if (gameMode === 'ai') {
         if (gameState.winner === 'white') {
           const next = streak + 1;
@@ -202,10 +230,22 @@ export default function GameScene() {
       }
     }, 1400);
     return () => window.clearTimeout(id);
-  }, [gameState.winner]);
+  }, [gameState.winner, gameMode]);
+
+  // ── Win detection — online mode ───────────────────────────────────────────────
+  useEffect(() => {
+    if (gameMode !== 'online') return;
+    const winner = partyGame.gameState.winner;
+    if (!winner) { setDisplayWinner(null); return; }
+    const id = window.setTimeout(() => {
+      setDisplayWinner(winner);
+      playWin();
+      track('game_won', { winner, mode: 'online', difficulty: 'online' });
+    }, 1400);
+    return () => window.clearTimeout(id);
+  }, [gameMode, partyGame.gameState.winner]);
 
   // ── AI turn trigger ──────────────────────────────────────────────────────────
-  // Fires whenever it becomes black's turn in AI mode.
   useEffect(() => {
     if (
       gameMode !== 'ai' ||
@@ -221,7 +261,6 @@ export default function GameScene() {
 
       let didMove = false;
       setGameState(prev => {
-        // Guard: only act if it's still black's turn and game is ongoing
         if (prev.currentTurn !== 'black' || prev.winner !== null) return prev;
         const move = getBestAIMove(prev, difficulty);
         if (!move) return prev;
@@ -244,11 +283,51 @@ export default function GameScene() {
   const lastClickMs = useRef(0);
   const handleCellClick = (row: number, col: number) => {
     const now = Date.now();
-    if (now - lastClickMs.current < 40) return; // debounce double-fires on mobile
+    if (now - lastClickMs.current < 40) return;
     lastClickMs.current = now;
+
+    // ── Online mode ────────────────────────────────────────────────────────────
+    if (gameMode === 'online') {
+      if (partyGame.status !== 'playing') return;
+      if (partyGame.myColor !== partyGame.gameState.currentTurn) return;
+      if (partyGame.gameState.winner !== null) return;
+
+      const state = {
+        ...partyGame.gameState,
+        selectedCell: onlineSelection.selectedCell,
+        validMoves: onlineSelection.validMoves,
+      };
+
+      if (state.selectedCell) {
+        const isValid = state.validMoves.some(([r, c]) => r === row && c === col);
+        if (isValid) {
+          partyGame.sendMove(state.selectedCell[0], state.selectedCell[1], row, col);
+          setOnlineSelection({ selectedCell: null, validMoves: [] });
+          playMove();
+          window.setTimeout(playLand, 380);
+          return;
+        }
+        const piece = state.board[row][col];
+        if (piece && piece.player === partyGame.myColor) {
+          setOnlineSelection({ selectedCell: [row, col], validMoves: getValidMoves(state, row, col) });
+          playSelect();
+          return;
+        }
+        setOnlineSelection({ selectedCell: null, validMoves: [] });
+        return;
+      }
+
+      const piece = state.board[row][col];
+      if (piece && piece.player === partyGame.myColor) {
+        setOnlineSelection({ selectedCell: [row, col], validMoves: getValidMoves(state, row, col) });
+        playSelect();
+      }
+      return;
+    }
+
+    // ── Local modes (pvp / ai) ─────────────────────────────────────────────────
     if (aiThinking || (gameMode === 'ai' && gameState.currentTurn === 'black')) return;
 
-    // Preview result to pick the right sound
     const next = selectCell(gameState, row, col);
     if (next.currentTurn !== gameState.currentTurn || next.winner !== null) {
       playMove();
@@ -262,6 +341,10 @@ export default function GameScene() {
 
   // ── Game controls ─────────────────────────────────────────────────────────────
   const handleReset = () => {
+    if (gameMode === 'online') {
+      partyGame.sendRematch();
+      return;
+    }
     setAiThinking(false);
     setGameState(createInitialState());
   };
@@ -269,14 +352,28 @@ export default function GameScene() {
   const handleChangeMode = () => {
     setAiThinking(false);
     setGameState(createInitialState());
+    setOnlineRoomId(null);
+    setOnlineSelection({ selectedCell: null, validMoves: [] });
+    setDisplayWinner(null);
     setGameMode(null);
+    window.history.replaceState({}, '', '/');
   };
 
   const handleSelectMode = (mode: GameMode, diff?: Difficulty) => {
+    if (mode === 'online') {
+      const roomId = Math.random().toString(36).slice(2, 10).toUpperCase();
+      setOnlineRoomId(roomId);
+      setGameMode('online');
+      setDisplayWinner(null);
+      window.history.replaceState({}, '', `/?r=${roomId}`);
+      track('game_started', { mode: 'online', difficulty: 'online' });
+      return;
+    }
     const d = diff ?? difficulty;
     if (diff) setDifficulty(diff);
     setGameState(createInitialState());
     setGameMode(mode);
+    setDisplayWinner(null);
     track('game_started', { mode, difficulty: mode === 'ai' ? d : 'pvp' });
   };
 
@@ -295,9 +392,7 @@ export default function GameScene() {
         shadows
         gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1, preserveDrawingBuffer: true }}
       >
-        {/* ── Lighting ────────────────────────────────────────────────── */}
         <ambientLight intensity={0.18} color="#0d0d2a" />
-
         <directionalLight
           position={[6, 14, 8]}
           intensity={1.4}
@@ -311,18 +406,16 @@ export default function GameScene() {
           shadow-camera-top={12}
           shadow-camera-bottom={-12}
         />
-
         <directionalLight position={[-8, 6, -6]} intensity={0.3} color="#2244aa" />
         <OasisLight />
-
         <fog attach="fog" args={['#04040e', 18, 40]} />
         <Stars />
 
         <MobileTapHandler onCellClick={handleCellClick} />
 
         <Suspense fallback={null}>
-          <Board gameState={gameState} />
-          <Pieces gameState={gameState} />
+          <Board gameState={activeGameState} />
+          <Pieces gameState={activeGameState} />
         </Suspense>
 
         <OrbitControls
@@ -340,7 +433,7 @@ export default function GameScene() {
       </Canvas>
 
       <HUD
-        gameState={gameState}
+        gameState={activeGameState}
         gameMode={gameMode}
         aiThinking={aiThinking}
         difficulty={difficulty}
@@ -350,6 +443,13 @@ export default function GameScene() {
         onReset={handleReset}
         onChangeMode={handleChangeMode}
         onSelectMode={handleSelectMode}
+        // Online props
+        onlineStatus={gameMode === 'online' ? partyGame.status : null}
+        onlineRoomId={onlineRoomId}
+        myColor={gameMode === 'online' ? partyGame.myColor : null}
+        onlinePlayers={partyGame.players}
+        opponentWantsRematch={partyGame.opponentWantsRematch}
+        onSendRematch={partyGame.sendRematch}
       />
     </div>
   );
