@@ -509,6 +509,37 @@ export default function HUD({
               </div>
             </div>
           )}
+
+          {/* Exit button */}
+          <button
+            onClick={onChangeMode}
+            style={{
+              marginLeft: "auto",
+              flex: "0 0 auto",
+              pointerEvents: "auto",
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 6,
+              color: "#44445a",
+              padding: isMobile ? "7px 10px" : "10px 14px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: isMobile ? 14 : 16,
+              lineHeight: 1,
+              transition: "border-color 0.15s, color 0.15s",
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.3)";
+              (e.currentTarget as HTMLButtonElement).style.color = "#aaaacc";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.12)";
+              (e.currentTarget as HTMLButtonElement).style.color = "#44445a";
+            }}
+            title="Back to menu"
+          >
+            ✕
+          </button>
         </div>
       )}
 
