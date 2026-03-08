@@ -708,11 +708,19 @@ export default function HUD({
                   fontWeight: 800,
                   letterSpacing: 2,
                   marginBottom: 12,
+                  textAlign: "center",
                 }}
               >
                 2 PLAYERS
               </div>
-              <div style={{ color: "#666688", fontSize: 11, lineHeight: 1.8 }}>
+              <div
+                style={{
+                  color: "#666688",
+                  fontSize: 11,
+                  lineHeight: 1.8,
+                  textAlign: "center",
+                }}
+              >
                 Pass &amp; play locally.
                 <br />
                 White vs Black.
