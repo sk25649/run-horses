@@ -231,7 +231,7 @@ export default function HUD({
       : currentTurn === "white"
         ? "○ WHITE"
         : "● BLACK";
-  const turnColor = currentTurn === "white" ? "#22dd77" : "#aa44ee";
+  const turnColor = currentTurn === "white" ? "#2277ff" : "#ff8800";
 
   return (
     <>
@@ -795,7 +795,7 @@ export default function HUD({
               fontWeight: 900,
               letterSpacing: isMobile ? 1 : 3,
               marginBottom: 16,
-              color: winner === "white" ? "#22dd77" : "#aa44ee",
+              color: winner === "white" ? "#2277ff" : "#ff8800",
               textShadow: "0 0 60px rgba(0,255,200,0.7)",
               textAlign: "center",
             }}

@@ -43,8 +43,8 @@ function PieceMesh({ row, col, player, isSelected }: PieceProps) {
   });
 
   const isWhite = player === 'white';
-  const color    = isWhite ? '#22dd77' : '#aa44ee';
-  const emissive = isSelected ? (isWhite ? '#00ff99' : '#dd66ff') : '#000000';
+  const color    = isWhite ? '#2277ff' : '#ff8800';
+  const emissive = isSelected ? (isWhite ? '#66aaff' : '#ffaa44') : '#000000';
   const emissiveIntensity = isSelected ? 1.0 : 0;
 
   // Shared material props — knight faces the +x axis so the head profile
@@ -100,7 +100,7 @@ function PieceMesh({ row, col, player, isSelected }: PieceProps) {
         <mesh position={[0, -0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.38, 0.48, 36]} />
           <meshBasicMaterial
-            color={isWhite ? '#00ff99' : '#dd66ff'}
+            color={isWhite ? '#66aaff' : '#ffaa44'}
             transparent
             opacity={0.85}
             side={THREE.DoubleSide}
