@@ -15,6 +15,7 @@ import {
   getBestAIMove,
 } from '@/lib/gameLogic';
 import { track } from '@vercel/analytics';
+import { playSelect, playMove, playLand, playWin } from '@/lib/sounds';
 import { gridToWorld } from './Board';
 import Board from './Board';
 import Pieces from './Pieces';
@@ -172,6 +173,7 @@ export default function GameScene() {
     if (!gameState.winner) { setDisplayWinner(null); return; }
     const id = window.setTimeout(() => {
       setDisplayWinner(gameState.winner);
+      playWin();
       track('game_won', { winner: gameState.winner!, mode: gameMode ?? 'pvp', difficulty });
     }, 1400);
     return () => window.clearTimeout(id);
@@ -192,13 +194,16 @@ export default function GameScene() {
     const id = window.setTimeout(() => {
       if (cancelled) return;
 
+      let didMove = false;
       setGameState(prev => {
         // Guard: only act if it's still black's turn and game is ongoing
         if (prev.currentTurn !== 'black' || prev.winner !== null) return prev;
         const move = getBestAIMove(prev, difficulty);
         if (!move) return prev;
+        didMove = true;
         return applyMove(prev, move.fromRow, move.fromCol, move.toRow, move.toCol);
       });
+      if (didMove) { playMove(); window.setTimeout(playLand, 380); }
 
       if (!cancelled) setAiThinking(false);
     }, 1000);
@@ -217,6 +222,16 @@ export default function GameScene() {
     if (now - lastClickMs.current < 40) return; // debounce double-fires on mobile
     lastClickMs.current = now;
     if (aiThinking || (gameMode === 'ai' && gameState.currentTurn === 'black')) return;
+
+    // Preview result to pick the right sound
+    const next = selectCell(gameState, row, col);
+    if (next.currentTurn !== gameState.currentTurn || next.winner !== null) {
+      playMove();
+      window.setTimeout(playLand, 380);
+    } else if (next.selectedCell !== null) {
+      playSelect();
+    }
+
     setGameState(prev => selectCell(prev, row, col));
   };
 
