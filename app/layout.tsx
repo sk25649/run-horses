@@ -3,16 +3,16 @@ import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'TV Games — Play iconic games from your favorite shows',
+  title: 'Play Episodes — Play iconic games from your favorite shows',
   description: 'Play iconic board games and challenges from hit TV shows. Real-time multiplayer, AI opponents, and local play.',
   openGraph: {
-    title: 'TV Games',
+    title: 'Play Episodes',
     description: 'Play iconic board games and challenges from hit TV shows.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'TV Games',
+    title: 'Play Episodes',
     description: 'Play iconic board games and challenges from hit TV shows.',
   },
 };

@@ -2,10 +2,10 @@ import { games } from '@/lib/game-core/registry';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'TV Games — Play iconic games from your favorite shows',
+  title: 'Play Episodes — Play iconic games from your favorite shows',
   description: 'Play iconic board games and challenges from hit TV shows. Real-time multiplayer, AI opponents, and local play.',
   openGraph: {
-    title: 'TV Games',
+    title: 'Play Episodes',
     description: 'Play iconic board games and challenges from hit TV shows.',
     type: 'website',
   },
@@ -55,7 +55,7 @@ export default function PortalPage() {
             lineHeight: 1.1,
           }}
         >
-          TV Games
+          Play Episodes
         </h1>
         <p
           style={{
@@ -207,7 +207,7 @@ export default function PortalPage() {
           letterSpacing: 1,
         }}
       >
-        TV Games
+        Play Episodes
       </footer>
     </div>
   );

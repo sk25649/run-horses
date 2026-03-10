@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'TV Games',
-    short_name: 'TV Games',
+    name: 'Play Episodes',
+    short_name: 'Play Episodes',
     description: 'Play iconic board games and challenges from hit TV shows.',
     start_url: '/',
     display: 'standalone',
