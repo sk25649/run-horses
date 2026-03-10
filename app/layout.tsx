@@ -3,17 +3,17 @@ import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Run Horses! 3D',
-  description: 'A 3D tactical board game. Race your horses to the Oasis.',
+  title: 'TV Games — Play iconic games from your favorite shows',
+  description: 'Play iconic board games and challenges from hit TV shows. Real-time multiplayer, AI opponents, and local play.',
   openGraph: {
-    title: 'Run Horses! 3D',
-    description: 'A 3D tactical board game. Race your horses to the Oasis.',
+    title: 'TV Games',
+    description: 'Play iconic board games and challenges from hit TV shows.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Run Horses! 3D',
-    description: 'A 3D tactical board game. Race your horses to the Oasis.',
+    title: 'TV Games',
+    description: 'Play iconic board games and challenges from hit TV shows.',
   },
 };
 
@@ -22,7 +22,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#00ffcc',
+  themeColor: '#04040e',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -7,11 +7,9 @@
 }
 
 html,
-body,
-#__next {
+body {
   width: 100%;
   height: 100%;
-  overflow: hidden;
   background: #04040e;
   color: #cccccc;
   font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
@@ -21,4 +19,10 @@ body,
 /* Hide scrollbars globally */
 ::-webkit-scrollbar {
   display: none;
+}
+
+/* Game card hover effects */
+a[href^="/"]:hover {
+  border-color: rgba(255,255,255,0.18) !important;
+  transform: translateY(-2px);
 }

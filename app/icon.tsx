@@ -13,12 +13,12 @@ export default function Icon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'radial-gradient(circle at 50% 40%, #061a18 0%, #04040e 100%)',
+          background: 'radial-gradient(circle at 50% 40%, #0a0a1a 0%, #04040e 100%)',
           borderRadius: '22%',
           fontSize: 320,
         }}
       >
-        🐎
+        🎮
       </div>
     ),
     size,

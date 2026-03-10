@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
-export const alt = 'Run Horses! 3D — A 3D tactical board game. Race your horses to the Oasis.';
+export const alt = 'TV Games — Play iconic games from your favorite shows';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -28,87 +28,54 @@ export default function Image() {
             position: 'absolute',
             inset: 0,
             display: 'flex',
-            opacity: 0.07,
+            opacity: 0.05,
             backgroundImage:
               'linear-gradient(#a78bfa 1px, transparent 1px), linear-gradient(90deg, #a78bfa 1px, transparent 1px)',
             backgroundSize: '80px 80px',
           }}
         />
 
-        {/* Glow orb behind title */}
+        {/* Glow */}
         <div
           style={{
             position: 'absolute',
             width: 600,
             height: 300,
             borderRadius: '50%',
-            background: 'radial-gradient(ellipse, rgba(139,92,246,0.25) 0%, transparent 70%)',
-            top: 80,
+            background: 'radial-gradient(ellipse, rgba(139,92,246,0.2) 0%, transparent 70%)',
+            top: 100,
             left: '50%',
             transform: 'translateX(-50%)',
           }}
         />
 
-        {/* Bottom oasis glow */}
-        <div
-          style={{
-            position: 'absolute',
-            width: 500,
-            height: 200,
-            borderRadius: '50%',
-            background: 'radial-gradient(ellipse, rgba(34,197,94,0.18) 0%, transparent 70%)',
-            bottom: 60,
-            left: '50%',
-            transform: 'translateX(-50%)',
-          }}
-        />
-
-        {/* Horse emoji row */}
+        {/* Emoji row */}
         <div
           style={{
             display: 'flex',
-            gap: 16,
-            marginBottom: 28,
-            fontSize: 52,
+            gap: 24,
+            marginBottom: 32,
+            fontSize: 56,
           }}
         >
           <span>🐎</span>
-          <span>🐎</span>
-          <span>🐎</span>
+          <span>🎲</span>
+          <span>🎯</span>
         </div>
 
         {/* Title */}
         <div
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 4,
+            fontSize: 88,
+            fontWeight: 900,
+            letterSpacing: '-2px',
+            color: '#ffffff',
+            textShadow: '0 0 60px rgba(139,92,246,0.6)',
+            lineHeight: 1,
+            marginBottom: 16,
           }}
         >
-          <div
-            style={{
-              fontSize: 88,
-              fontWeight: 900,
-              letterSpacing: '-2px',
-              color: '#ffffff',
-              textShadow: '0 0 60px rgba(139,92,246,0.8)',
-              lineHeight: 1,
-            }}
-          >
-            Run Horses!
-          </div>
-          <div
-            style={{
-              fontSize: 36,
-              fontWeight: 700,
-              letterSpacing: '8px',
-              color: '#a78bfa',
-              textTransform: 'uppercase',
-            }}
-          >
-            3 D
-          </div>
+          TV Games
         </div>
 
         {/* Divider */}
@@ -116,51 +83,23 @@ export default function Image() {
           style={{
             width: 320,
             height: 2,
-            background: 'linear-gradient(90deg, transparent, #a78bfa, #22c55e, transparent)',
-            margin: '28px 0',
+            background: 'linear-gradient(90deg, transparent, #a78bfa, #00ffcc, transparent)',
+            margin: '16px 0 28px',
             borderRadius: 1,
+            display: 'flex',
           }}
         />
 
         {/* Tagline */}
         <div
           style={{
-            fontSize: 22,
+            fontSize: 24,
             color: '#c4b5fd',
-            letterSpacing: '1px',
+            letterSpacing: '2px',
             textAlign: 'center',
-            maxWidth: 600,
-            lineHeight: 1.5,
           }}
         >
-          A 3D tactical board game
-        </div>
-
-        {/* Oasis badge */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            marginTop: 24,
-            padding: '10px 28px',
-            borderRadius: 100,
-            background: 'rgba(34,197,94,0.12)',
-            border: '1.5px solid rgba(34,197,94,0.4)',
-          }}
-        >
-          <span style={{ fontSize: 22 }}>🌴</span>
-          <span
-            style={{
-              fontSize: 18,
-              color: '#86efac',
-              fontWeight: 600,
-              letterSpacing: '1px',
-            }}
-          >
-            Race to the Oasis
-          </span>
-          <span style={{ fontSize: 22 }}>🌴</span>
+          Play iconic games from your favorite shows
         </div>
       </div>
     ),

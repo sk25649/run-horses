@@ -1,9 +1,4 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-
-const GameScene = dynamic(() => import('./GameScene'), { ssr: false });
-
-export default function ClientGameScene() {
-  return <GameScene />;
-}
+// Re-export from new location for backwards compatibility
+export { default } from '@/lib/games/run-horses/components/ClientGameScene';

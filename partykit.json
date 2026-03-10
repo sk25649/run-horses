@@ -1,5 +1,8 @@
 {
-  "name": "run-horses",
-  "main": "party/game.ts",
+  "name": "tv-games",
+  "main": "party/run-horses.ts",
+  "parties": {
+    "run-horses": "party/run-horses.ts"
+  },
   "compatibilityDate": "2023-11-20"
 }
