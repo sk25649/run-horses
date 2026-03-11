@@ -205,9 +205,13 @@ export default function HUD({
   useEffect(() => { setPlayerName(localStorage.getItem('mo_name') || ''); }, []);
 
   const [showRulesModal, setShowRulesModal] = useState(false);
+  const rulesShownRef = useRef(false);
   useEffect(() => {
-    if (localStorage.getItem('mo_hide_rules') !== '1') setShowRulesModal(true);
-  }, []);
+    if (gameMode !== null && !rulesShownRef.current && localStorage.getItem('mo_hide_rules') !== '1') {
+      rulesShownRef.current = true;
+      setShowRulesModal(true);
+    }
+  }, [gameMode]);
   const dismissRules = (never: boolean) => {
     if (never) localStorage.setItem('mo_hide_rules', '1');
     setShowRulesModal(false);
@@ -294,7 +298,7 @@ export default function HUD({
             <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "12px 16px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#888aaa", marginBottom: 6 }}>STEP 1 — PLACE YOUR MINES 💣</div>
               <div style={{ fontSize: 12, color: "#ccccee", lineHeight: 1.6 }}>
-                Each player secretly places <span style={{ color: "#ff4444", fontWeight: 700 }}>5 mines</span> on the board before the game starts. Tap any tile to place a mine — or hit <span style={{ color: "#44dd88", fontWeight: 700 }}>RANDOM</span> to place them all at once. Your opponent can't see where you placed them!
+                Each player secretly places <span style={{ color: "#ff4444", fontWeight: 700 }}>15 mines</span> on the board before the game starts. Tap any tile to place a mine — or hit <span style={{ color: "#44dd88", fontWeight: 700 }}>RANDOM</span> to place them all at once. Your opponent can't see where you placed them!
               </div>
             </div>
 
@@ -502,7 +506,7 @@ export default function HUD({
       )}
 
       {/* ══ PLACEMENT PHASE OVERLAY ══════════════════════════════════════════ */}
-      {gameMode !== null && phase === 'placement' && !showPassScreen && (
+      {gameMode !== null && phase === 'placement' && !showPassScreen && (gameMode !== 'online' || onlineStatus === 'playing') && (
         <div className="mode-fade" style={{
           position: "fixed", inset: 0, display: "flex", flexDirection: "column",
           alignItems: "center", justifyContent: "center",
@@ -602,9 +606,9 @@ export default function HUD({
         }}>
           <button onClick={() => { sessionStorage.removeItem('mo_session'); sessionStorage.removeItem('mo_session_v2'); window.location.href = '/'; }} style={{
             display: "inline-block", marginBottom: 20,
-            color: "#44445a", fontSize: 10, letterSpacing: 3, textDecoration: "none",
-            border: "1px solid rgba(255,255,255,0.08)", borderRadius: 5, padding: "6px 14px",
-            background: "transparent", cursor: "pointer", fontFamily: "inherit",
+            color: "#aaaacc", fontSize: 10, letterSpacing: 3, textDecoration: "none",
+            border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, padding: "6px 14px",
+            background: "rgba(255,255,255,0.05)", cursor: "pointer", fontFamily: "inherit",
           }}>← ALL GAMES</button>
 
           <div style={{ marginBottom: 4, textAlign: "center" }}>
@@ -620,8 +624,8 @@ export default function HUD({
           <button
             onClick={() => setShowRulesModal(true)}
             style={{
-              background: "transparent", border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 6, color: "#555577", fontSize: 10, letterSpacing: 2,
+              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.3)",
+              borderRadius: 6, color: "#aaaacc", fontSize: 10, letterSpacing: 2,
               cursor: "pointer", padding: "6px 18px", fontFamily: "inherit",
               margin: "12px 0 18px",
             }}
@@ -779,6 +783,19 @@ export default function HUD({
       )}
 
       {/* ══ ONLINE OVERLAYS ══════════════════════════════════════════════════ */}
+
+      {/* Connecting */}
+      {gameMode === "online" && onlineStatus === "connecting" && !winner && (
+        <div className="mode-fade" style={{
+          position: "fixed", inset: 0, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          background: "rgba(4,4,14,0.92)", backdropFilter: "blur(6px)", zIndex: 70,
+        }}>
+          <div className="ai-blink" style={{ fontSize: isMobile ? 20 : 28, fontWeight: 900, color: "#ffffff", letterSpacing: 3, marginBottom: 8 }}>CONNECTING...</div>
+          <div style={{ color: "#555577", fontSize: 11, letterSpacing: 3 }}>REACHING GAME SERVER</div>
+          <div style={{ marginTop: 32 }}><GhostButton onClick={onChangeMode} color="#555577" small>CANCEL</GhostButton></div>
+        </div>
+      )}
 
       {/* Name entry */}
       {gameMode === "online" && onlineStatus === "name_required" && !winner && (

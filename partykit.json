@@ -1,5 +1,5 @@
 {
-  "name": "play-episodes",
+  "name": "run-horses",
   "main": "party/run-horses.ts",
   "parties": {
     "runhorses": "party/run-horses.ts",

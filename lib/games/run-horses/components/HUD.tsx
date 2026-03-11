@@ -248,6 +248,20 @@ export default function HUD({
     setPlayerName(localStorage.getItem('rh_name') || '');
   }, []);
 
+  // ── How to play modal ─────────────────────────────────────────────────────
+  const [showRulesModal, setShowRulesModal] = useState(false);
+  const rulesShownRef = useRef(false);
+  useEffect(() => {
+    if (gameMode !== null && !rulesShownRef.current && localStorage.getItem('rh_hide_rules') !== '1') {
+      rulesShownRef.current = true;
+      setShowRulesModal(true);
+    }
+  }, [gameMode]);
+  const dismissRules = (never: boolean) => {
+    if (never) localStorage.setItem('rh_hide_rules', '1');
+    setShowRulesModal(false);
+  };
+
   // ── Challenge banner (loaded from URL ?c=TOKEN) ───────────────────────────
   const [challengeData, setChallengeData] = useState<{
     name: string; moves: number; difficulty: string; mode: string;
@@ -832,6 +846,81 @@ export default function HUD({
         </div>
       )}
 
+      {/* ══ HOW TO PLAY MODAL ════════════════════════════════════════════════ */}
+      {showRulesModal && (
+        <div className="mode-fade" style={{
+          position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          background: "rgba(2,2,10,0.88)", backdropFilter: "blur(8px)", zIndex: 90,
+          padding: "24px 16px", overflowY: "auto",
+        }} onClick={() => dismissRules(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            width: "100%", maxWidth: 480,
+            background: "rgba(12,12,28,0.98)", border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: 16, padding: "28px 24px",
+            display: "flex", flexDirection: "column", gap: 12,
+            fontFamily: "'SF Mono','Fira Code',monospace",
+          }}>
+            <div style={{ textAlign: "center", fontSize: 20, fontWeight: 900, letterSpacing: 3, color: "#ffffff", marginBottom: 4 }}>
+              HOW TO PLAY
+            </div>
+
+            {/* Step 1 */}
+            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "12px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#888aaa", marginBottom: 6 }}>THE BOARD 🏜️</div>
+              <div style={{ fontSize: 12, color: "#ccccee", lineHeight: 1.6 }}>
+                An 11×11 grid with two terrain types: <span style={{ color: "#70c0ff", fontWeight: 700 }}>grass</span> (most tiles) and <span style={{ color: "#f5c842", fontWeight: 700 }}>desert</span> (brown tiles). The glowing <span style={{ color: "#00ffcc", fontWeight: 700 }}>Oasis</span> sits at the center — that's your goal!
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "12px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#70c0ff", marginBottom: 6 }}>SLIDE 🟦</div>
+              <div style={{ fontSize: 12, color: "#ccccee", lineHeight: 1.6 }}>
+                Your piece glides <span style={{ color: "#70c0ff", fontWeight: 700 }}>horizontally or vertically</span> and stops at the last open cell in that direction — like a rook in chess that can't jump over pieces.
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "12px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#f5c842", marginBottom: 6 }}>L-JUMP ⚡</div>
+              <div style={{ fontSize: 12, color: "#ccccee", lineHeight: 1.6 }}>
+                When your piece is on a <span style={{ color: "#f5c842", fontWeight: 700 }}>desert tile</span>, you can also L-jump — teleport in an L-shape to any other desert tile on the board. A powerful move for crossing the board fast!
+              </div>
+            </div>
+
+            {/* Step 4 */}
+            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "12px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#00ffcc", marginBottom: 6 }}>WIN THE GAME 🏆</div>
+              <div style={{ fontSize: 12, color: "#ccccee", lineHeight: 1.6 }}>
+                <span style={{ color: "#2277ff", fontWeight: 700 }}>BLUE</span> goes first. On each turn, select one of your pieces and make a move. First player to land <span style={{ color: "#00ffcc", fontWeight: 700 }}>any piece on the Oasis</span> wins!
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginTop: 8 }}>
+              <button
+                onClick={() => dismissRules(false)}
+                style={{
+                  width: "100%", padding: "13px 0", borderRadius: 10, border: "none",
+                  background: "#00ffcc", color: "#040414", fontSize: 14, fontWeight: 800,
+                  letterSpacing: 3, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                GOT IT
+              </button>
+              <button
+                onClick={() => dismissRules(true)}
+                style={{
+                  background: "none", border: "none", color: "#555577", fontSize: 11,
+                  letterSpacing: 2, cursor: "pointer", fontFamily: "inherit", padding: "4px 0",
+                }}
+              >
+                DON'T SHOW THIS AGAIN
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ════════════════════════════════════════════════════════════════════
           MODE SELECTION SCREEN  (shown when gameMode is null)
       ═════════════════════════════════════════════════════════════════════ */}
@@ -855,9 +944,9 @@ export default function HUD({
           {/* Back to portal */}
           <button onClick={() => { sessionStorage.removeItem('rh_session'); window.location.href = '/'; }} style={{
             display: "inline-block", marginBottom: 20,
-            color: "#44445a", fontSize: 10, letterSpacing: 3, textDecoration: "none",
-            border: "1px solid rgba(255,255,255,0.08)", borderRadius: 5, padding: "6px 14px",
-            background: "transparent", cursor: "pointer", fontFamily: "inherit",
+            color: "#aaaacc", fontSize: 10, letterSpacing: 3, textDecoration: "none",
+            border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, padding: "6px 14px",
+            background: "rgba(255,255,255,0.05)", cursor: "pointer", fontFamily: "inherit",
           }}>← ALL GAMES</button>
 
           {/* Logo */}
@@ -884,76 +973,19 @@ export default function HUD({
             </div>
           </div>
 
-          {/* ── How to play ──────────────────────────────────────────────── */}
-          <div
+          {/* ── How to play trigger ──────────────────────────────────────── */}
+          <button
+            onClick={() => setShowRulesModal(true)}
             style={{
-              margin: isMobile ? "18px 0 20px" : "22px 0 24px",
-              background: "rgba(4,4,14,0.88)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 10,
-              padding: isMobile ? "14px 18px" : "16px 28px",
-              width: isMobile ? "90vw" : undefined,
-              maxWidth: 560,
+              margin: isMobile ? "14px 0 18px" : "18px 0 22px",
+              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.3)",
+              borderRadius: 6, padding: "7px 18px",
+              color: "#aaaacc", fontSize: 10, letterSpacing: 3,
+              cursor: "pointer", fontFamily: "inherit",
             }}
           >
-            <div
-              style={{
-                color: "#555577",
-                fontSize: 9,
-                letterSpacing: 4,
-                marginBottom: 12,
-                textTransform: "uppercase",
-              }}
-            >
-              How to Play
-            </div>
-            {[
-              {
-                label: "SLIDE",
-                color: "#70c0ff",
-                desc: "Pieces glide horizontally or vertically to the last open cell in that direction.",
-              },
-              {
-                label: "L-JUMP",
-                color: "#f5c842",
-                desc: "On desert (brown) tiles only — jump in an L-shape to any other desert tile.",
-              },
-              {
-                label: "GOAL",
-                color: "#00ffcc",
-                desc: "First player to land a piece on the glowing Oasis wins.",
-              },
-            ].map(({ label, color, desc }) => (
-              <div
-                key={label}
-                style={{
-                  display: "flex",
-                  gap: 12,
-                  alignItems: "flex-start",
-                  marginBottom: 10,
-                }}
-              >
-                <span
-                  style={{
-                    color,
-                    fontSize: 10,
-                    fontWeight: 800,
-                    letterSpacing: 2,
-                    whiteSpace: "nowrap",
-                    paddingTop: 1,
-                    minWidth: 56,
-                  }}
-                >
-                  {label}
-                </span>
-                <span
-                  style={{ color: "#8888aa", fontSize: 11, lineHeight: 1.6 }}
-                >
-                  {desc}
-                </span>
-              </div>
-            ))}
-          </div>
+            ? &nbsp;HOW TO PLAY
+          </button>
 
           {/* ── Mode cards ───────────────────────────────────────────────── */}
           <div

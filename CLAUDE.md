@@ -539,4 +539,85 @@ AI must support 3 levels. Typical implementation — minimax with depth scaling:
 - **`handleChangeMode` must remove the current session key** — using the old key leaves stale state that keeps restoring.
 - **Online `activeGameState` comes from the hook**, not local `gameState`. Always alias: `const activeGameState = gameMode === 'online' ? partyGame.gameState : gameState`.
 - **3D canvas must be `ssr: false`** via dynamic import — Three.js requires browser APIs.
+
+---
+
+## 3D Lighting & Materials
+
+**The dark board problem**: New games always ship dark because the scene background is `#1a1a2e` (near-black) and default `meshStandardMaterial` has `roughness=1, metalness=0` which absorbs almost all indirect light. Fix by dialling down roughness and adding the right scene lights.
+
+### Copy-paste scene lights (inside `<Canvas>`)
+
+```tsx
+<Canvas
+  gl={{
+    antialias: true,
+    toneMapping: THREE.ACESFilmicToneMapping,
+    toneMappingExposure: 1.1,
+    preserveDrawingBuffer: true,
+  }}
+>
+  {/* Raise ambientLight intensity for a brighter base; tint to match game palette */}
+  <ambientLight intensity={0.55} color="#80ffaa" />   {/* Minefield — green tint */}
+  {/* Main sun-style directional light from upper-right; castShadow for depth */}
+  <directionalLight
+    position={[6, 14, 8]} intensity={1.6} color="#ffffff"
+    castShadow shadow-mapSize={[2048, 2048]}
+    shadow-camera-near={0.1} shadow-camera-far={60}
+    shadow-camera-left={-12} shadow-camera-right={12}
+    shadow-camera-top={12} shadow-camera-bottom={-12}
+  />
+  {/* Soft fill light from opposite side; tint matches atmosphere */}
+  <directionalLight position={[-8, 6, -6]} intensity={0.3} color="#224433" />
+```
+
+**Key knobs:**
+- `ambientLight intensity` — the most impactful lever. `0.18` is very dark (Run Horses night scene). `0.55` is well-lit (Minefield jungle). Go above `0.5` if tiles look muddy.
+- `ambientLight color` — tint it to match the game palette (green jungle, blue night, gold desert). Pure `#ffffff` looks sterile.
+- `directionalLight intensity` — main light at `1.4–1.6`. Too high bleaches highlights; too low leaves dark shadows.
+- `toneMappingExposure` — bump to `1.2–1.4` to brighten the whole scene without changing individual materials.
+
+### Tile material configs (meshStandardMaterial)
+
+Keep `roughness` below `0.75` — above that tiles go flat and dark. Keep `metalness` low (`0.05–0.15`) for non-metallic surfaces.
+
+```tsx
+{/* Generic ground tile — readable in ambient light */}
+<meshStandardMaterial color="#5ab86a" roughness={0.65} metalness={0.08} />
+
+{/* Stepped / visited overlay — slightly darker */}
+<meshStandardMaterial color="#2e7a3e" roughness={0.70} metalness={0.05} />
+
+{/* Board base plate — dark, matte */}
+<meshStandardMaterial color="#1a3a1a" roughness={0.90} metalness={0.40} />
+```
+
+### Emissive trick for special tiles
+
+Any tile that must pop regardless of lighting (goal, treasure, oasis) — add `emissive` + `emissiveIntensity`:
+
+```tsx
+{/* Treasure / goal tile — glows even in dark corners */}
+<meshStandardMaterial
+  color="#f5c842"
+  emissive="#f5c842"
+  emissiveIntensity={0.7}
+  roughness={0.20}
+  metalness={0.60}
+/>
+```
+
+`emissiveIntensity={0.5–1.0}` makes the tile self-illuminate. Pair with a `pointLight` at the same position for a real glow halo:
+
+```tsx
+<pointLight position={[col, 0.8, row]} color="#f5c842" distance={7} intensity={1.2} decay={2} />
+```
+
+### Quick diagnostic checklist
+
+1. Scene looks flat/dark → raise `ambientLight intensity` first (`0.18` → `0.55`).
+2. Tiles still muddy → lower `roughness` (`0.9` → `0.65`).
+3. Goal/treasure tile invisible → add `emissive` matching the `color`.
+4. Whole scene too dim → increase `toneMappingExposure` (`1.1` → `1.4`).
+5. Shadows too harsh → lower main `directionalLight intensity` or soften with a fill light.
 - **Mine/piece positions are in `GameState`** (broadcast to all clients) but actual mine positions are server-only (`_whiteMines`, `_blackMines`). Never put secret data in `GameState`.
