@@ -2,7 +2,8 @@
   "name": "tv-games",
   "main": "party/run-horses.ts",
   "parties": {
-    "run-horses": "party/run-horses.ts"
+    "runhorses": "party/run-horses.ts",
+    "minefield": "party/minefield.ts"
   },
   "compatibilityDate": "2023-11-20"
 }

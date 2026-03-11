@@ -2,7 +2,7 @@
 export type Terrain = 'oasis' | 'garden' | 'desert';
 export type Player = 'white' | 'black';
 export type GameMode = 'pvp' | 'ai' | 'online';
-export type Difficulty = 'easy' | 'medium' | 'hard' | 'impossible';
+export type Difficulty = 'easy' | 'medium' | 'hard';
 
 export interface Piece {
   player: Player;
@@ -297,115 +297,6 @@ function minimax(
   }
 }
 
-// ─── Impossible AI ────────────────────────────────────────────────────────────
-
-/** Sums ALL pieces' positional scores + multi-threat bonus. Positive = good for black. */
-function evaluateImpossible(state: GameState): number {
-  if (state.winner === 'black') return  100_000;
-  if (state.winner === 'white') return -100_000;
-
-  let score = 0;
-  let blackThreats = 0, whiteThreats = 0;
-
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const piece = state.board[r][c];
-      if (!piece) continue;
-
-      const manhattan = Math.abs(r - OASIS[0]) + Math.abs(c - OASIS[1]);
-      let s = 30 - manhattan * 2;
-      if (r === OASIS[0]) s += 15;
-      if (c === OASIS[1]) s += 15;
-      if (manhattan <= 2) s += 20;
-      if (canReachOasis(state.board, r, c)) {
-        s += 150;
-        if (piece.player === 'black') blackThreats++;
-        else                          whiteThreats++;
-      }
-
-      if (piece.player === 'black') score += s;
-      else                          score -= s;
-    }
-  }
-
-  if (blackThreats >= 2) score += 1000;
-  if (whiteThreats >= 2) score -= 1000;
-
-  return score;
-}
-
-/** Quiescence search — extends 2 extra plies in hot positions to prevent horizon effect. */
-function quiescence(state: GameState, alpha: number, beta: number, depth: number): number {
-  if (state.winner !== null) return evaluateImpossible(state);
-
-  const standPat = evaluateImpossible(state);
-  if (depth <= 0) return standPat;
-
-  const moves = getAllMovesForState(state);
-  const hot = moves.filter(m => m.toRow === OASIS[0] || m.toCol === OASIS[1]);
-  if (hot.length === 0) return standPat;
-
-  if (state.currentTurn === 'black') {
-    let best = standPat;
-    if (best >= beta) return best;
-    alpha = Math.max(alpha, best);
-    for (const m of hot) {
-      const val = quiescence(applyMove(state, m.fromRow, m.fromCol, m.toRow, m.toCol), alpha, beta, depth - 1);
-      if (val > best) best = val;
-      if (val > alpha) alpha = val;
-      if (beta <= alpha) break;
-    }
-    return best;
-  } else {
-    let best = standPat;
-    if (best <= alpha) return best;
-    beta = Math.min(beta, best);
-    for (const m of hot) {
-      const val = quiescence(applyMove(state, m.fromRow, m.fromCol, m.toRow, m.toCol), alpha, beta, depth - 1);
-      if (val < best) best = val;
-      if (val < beta) beta = val;
-      if (beta <= alpha) break;
-    }
-    return best;
-  }
-}
-
-function minimaxImpossible(state: GameState, depth: number, alpha: number, beta: number): number {
-  if (state.winner !== null) return evaluateImpossible(state);
-  if (depth === 0) return quiescence(state, alpha, beta, 2);
-
-  const moves = getAllMovesForState(state);
-  if (moves.length === 0) return evaluateImpossible(state);
-
-  moves.sort((a, b) => {
-    const score = (m: MoveCandidate) => {
-      if (m.toRow === OASIS[0] && m.toCol === OASIS[1]) return 10000;
-      if (m.toRow === OASIS[0] || m.toCol === OASIS[1]) return 300;
-      return 0;
-    };
-    return score(b) - score(a);
-  });
-
-  if (state.currentTurn === 'black') {
-    let best = -Infinity;
-    for (const m of moves) {
-      const val = minimaxImpossible(applyMove(state, m.fromRow, m.fromCol, m.toRow, m.toCol), depth - 1, alpha, beta);
-      if (val > best) best = val;
-      if (val > alpha) alpha = val;
-      if (beta <= alpha) break;
-    }
-    return best;
-  } else {
-    let best = Infinity;
-    for (const m of moves) {
-      const val = minimaxImpossible(applyMove(state, m.fromRow, m.fromCol, m.toRow, m.toCol), depth - 1, alpha, beta);
-      if (val < best) best = val;
-      if (val < beta) beta = val;
-      if (beta <= alpha) break;
-    }
-    return best;
-  }
-}
 
 export function getBestAIMove(state: GameState, difficulty: Difficulty = 'medium'): AIMove | null {
   if (state.currentTurn !== 'black' || state.winner) return null;
@@ -422,21 +313,6 @@ export function getBestAIMove(state: GameState, difficulty: Difficulty = 'medium
   // Always take an instant win
   const winMove = moves.find(m => m.toRow === OASIS[0] && m.toCol === OASIS[1]);
   if (winMove) return { fromRow: winMove.fromRow, fromCol: winMove.fromCol, toRow: winMove.toRow, toCol: winMove.toCol };
-
-  if (difficulty === 'impossible') {
-    let bestMove: MoveCandidate | null = null;
-    let bestVal = -Infinity;
-    for (const move of moves) {
-      const val = minimaxImpossible(
-        applyMove(state, move.fromRow, move.fromCol, move.toRow, move.toCol),
-        5, -Infinity, Infinity,
-      );
-      if (val > bestVal) { bestVal = val; bestMove = move; }
-    }
-    return bestMove
-      ? { fromRow: bestMove.fromRow, fromCol: bestMove.fromCol, toRow: bestMove.toRow, toCol: bestMove.toCol }
-      : null;
-  }
 
   const depth = difficulty === 'hard' ? 4 : 2;
 

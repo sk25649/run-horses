@@ -1,6 +1,6 @@
 import { createChallengeHandler } from '@/lib/sharing/challengeHandler';
 
 export const { GET, POST } = createChallengeHandler({
-  gameId: 'run-horses',
+  gameId: 'minefield',
   validDifficulties: ['easy', 'medium', 'hard'],
 });

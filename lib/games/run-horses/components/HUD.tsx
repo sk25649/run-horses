@@ -1019,15 +1019,13 @@ export default function HUD({
                 VS AI
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {(["easy", "medium", "hard", "impossible"] as Difficulty[]).map((d) => {
+                {(["easy", "medium", "hard"] as Difficulty[]).map((d) => {
                   const color =
                     d === "easy"
                       ? "#44dd88"
                       : d === "medium"
                         ? "#f5c842"
-                        : d === "hard"
-                          ? "#ff4466"
-                          : "#cc00ff";
+                        : "#ff4466";
                   return (
                     <button
                       key={d}

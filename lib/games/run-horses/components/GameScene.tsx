@@ -242,7 +242,7 @@ export default function GameScene() {
 
   // Always call hook — pass null when not in online mode (hook becomes a no-op)
   const partyGame = usePartyGame<GameState>(gameMode === 'online' ? onlineRoomId : null, {
-    party: 'run-horses',
+    party: 'runhorses',
     initialState: createInitialState,
     nameKey: 'rh_name',
   });

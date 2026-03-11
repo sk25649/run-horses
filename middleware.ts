@@ -4,8 +4,7 @@ import type { NextRequest } from 'next/server';
 // Map subdomains to internal route paths
 const SUBDOMAIN_ROUTES: Record<string, string> = {
   runhorses: '/run-horses',
-  // Add future games here:
-  // newgame: '/new-game',
+  minefield: '/minefield',
 };
 
 export function middleware(req: NextRequest) {
