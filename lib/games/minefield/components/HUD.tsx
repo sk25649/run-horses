@@ -213,6 +213,9 @@ export default function HUD({
     setShowRulesModal(false);
   };
 
+  const [showRules, setShowRules] = useState(false);
+  useEffect(() => { if (localStorage.getItem('mo_hide_rules') !== '1') setShowRules(true); }, []);
+
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
 
@@ -532,107 +535,16 @@ export default function HUD({
             </div>
           </div>
 
-          {/* How to play */}
-          {showRules ? (
-          <div style={{
-            margin: isMobile ? "16px 0 18px" : "20px 0 22px",
-            width: isMobile ? "90vw" : undefined, maxWidth: 560,
-            display: "flex", flexDirection: "column", gap: 8,
-          }}>
-            <div style={{ color: "#555577", fontSize: 9, letterSpacing: 4, marginBottom: 4, textAlign: "center" }}>HOW TO PLAY</div>
-
-            {/* Step 1 */}
-            <div style={{ background: "rgba(255,68,68,0.08)", border: "1px solid rgba(255,68,68,0.2)", borderRadius: 10, padding: "12px 16px", display: "flex", gap: 14, alignItems: "flex-start" }}>
-              <div style={{ fontSize: isMobile ? 22 : 26, lineHeight: 1, flexShrink: 0 }}>💣</div>
-              <div>
-                <div style={{ color: "#ff4444", fontSize: 10, fontWeight: 800, letterSpacing: 2, marginBottom: 4 }}>STEP 1 — PLACE YOUR MINES</div>
-                <div style={{ color: "#8888aa", fontSize: isMobile ? 11 : 12, lineHeight: 1.6 }}>
-                  Before the game starts, each player secretly places <span style={{ color: "#ffffff" }}>15 mines</span> anywhere on the board — except near the starting corners or treasure chests. Your opponent cannot see where you placed them.
-                </div>
-              </div>
-            </div>
-
-            {/* Step 2 */}
-            <div style={{ background: "rgba(170,68,255,0.08)", border: "1px solid rgba(170,68,255,0.2)", borderRadius: 10, padding: "12px 16px", display: "flex", gap: 14, alignItems: "flex-start" }}>
-              <div style={{ fontSize: isMobile ? 22 : 26, lineHeight: 1, flexShrink: 0 }}>🚶</div>
-              <div>
-                <div style={{ color: "#aa44ff", fontSize: 10, fontWeight: 800, letterSpacing: 2, marginBottom: 4 }}>STEP 2 — TAKE TURNS MOVING</div>
-                <div style={{ color: "#8888aa", fontSize: isMobile ? 11 : 12, lineHeight: 1.6 }}>
-                  Move your piece <span style={{ color: "#ffffff" }}>1 step</span> in any direction — up, down, left, right, or <span style={{ color: "#ffffff" }}>diagonal</span>. You cannot stand on the same tile as your opponent.
-                </div>
-              </div>
-            </div>
-
-            {/* Step 3 */}
-            <div style={{ background: "rgba(68,136,255,0.08)", border: "1px solid rgba(68,136,255,0.2)", borderRadius: 10, padding: "12px 16px", display: "flex", gap: 14, alignItems: "flex-start" }}>
-              <div style={{ fontSize: isMobile ? 22 : 26, lineHeight: 1, flexShrink: 0 }}>🔢</div>
-              <div>
-                <div style={{ color: "#4488ff", fontSize: 10, fontWeight: 800, letterSpacing: 2, marginBottom: 4 }}>LANDING ON A SAFE TILE</div>
-                <div style={{ color: "#8888aa", fontSize: isMobile ? 11 : 12, lineHeight: 1.6 }}>
-                  When you land safely, you see a number showing how many mines surround that tile. <span style={{ color: "#ffffff" }}>You score that many points.</span> A <span style={{ color: "#ffffff" }}>0</span> means no mines nearby — no points.
-                </div>
-                {/* Mini visual example */}
-                <div style={{ marginTop: 8, display: "flex", gap: 3, alignItems: "center" }}>
-                  {[
-                    { bg: "#1a3a2a", label: "0" }, { bg: "#1a3a2a", label: "1" }, { bg: "#3a1010", label: "💣" },
-                    { bg: "#1a3a2a", label: "2" }, { bg: "#2244aa", label: "👤", border: "#2277ff" }, { bg: "#3a1010", label: "💣" },
-                    { bg: "#1a3a2a", label: "1" }, { bg: "#1a3a2a", label: "2" }, { bg: "#3a1010", label: "💣" },
-                  ].map((cell, i) => (
-                    <div key={i} style={{
-                      width: isMobile ? 22 : 26, height: isMobile ? 22 : 26, background: cell.bg,
-                      border: `1px solid ${cell.border ?? "rgba(255,255,255,0.08)"}`,
-                      borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: isMobile ? 9 : 10, color: i === 4 ? "#2277ff" : "#aaaacc", fontWeight: 700,
-                    }}>{cell.label}</div>
-                  ))}
-                  <div style={{ color: "#555577", fontSize: 10, marginLeft: 6 }}>← scores 3 pts</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Step 4 */}
-            <div style={{ background: "rgba(255,100,50,0.08)", border: "1px solid rgba(255,100,50,0.2)", borderRadius: 10, padding: "12px 16px", display: "flex", gap: 14, alignItems: "flex-start" }}>
-              <div style={{ fontSize: isMobile ? 22 : 26, lineHeight: 1, flexShrink: 0 }}>💥</div>
-              <div>
-                <div style={{ color: "#ff6632", fontSize: 10, fontWeight: 800, letterSpacing: 2, marginBottom: 4 }}>LANDING ON A MINE</div>
-                <div style={{ color: "#8888aa", fontSize: isMobile ? 11 : 12, lineHeight: 1.6 }}>
-                  The mine explodes! You lose <span style={{ color: "#ff4444" }}>5 points</span> and get teleported back near your starting corner. The mine is gone from the board.
-                </div>
-              </div>
-            </div>
-
-            {/* Step 5 */}
-            <div style={{ background: "rgba(245,200,66,0.08)", border: "1px solid rgba(245,200,66,0.25)", borderRadius: 10, padding: "12px 16px", display: "flex", gap: 14, alignItems: "flex-start" }}>
-              <div style={{ fontSize: isMobile ? 22 : 26, lineHeight: 1, flexShrink: 0 }}>🏆</div>
-              <div>
-                <div style={{ color: "#f5c842", fontSize: 10, fontWeight: 800, letterSpacing: 2, marginBottom: 4 }}>COLLECT TREASURES TO WIN</div>
-                <div style={{ color: "#8888aa", fontSize: isMobile ? 11 : 12, lineHeight: 1.6 }}>
-                  There are <span style={{ color: "#ffffff" }}>3 treasure chests</span> on the board. The first collected is worth <span style={{ color: "#f5c842" }}>+10 pts</span>, second <span style={{ color: "#f5c842" }}>+15 pts</span>, third <span style={{ color: "#f5c842" }}>+20 pts</span>. Once all 3 are collected, the game ends — <span style={{ color: "#ffffff" }}>highest score wins!</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Never show again */}
-            <button
-              onClick={() => { localStorage.setItem('mo_hide_rules', '1'); setShowRules(false); }}
-              style={{
-                background: "transparent", border: "none", color: "#333355",
-                fontSize: 10, letterSpacing: 2, cursor: "pointer", padding: "4px 0",
-                fontFamily: "inherit", textAlign: "center",
-              }}
-            >✕ &nbsp;NEVER SHOW AGAIN</button>
-          </div>
-          ) : (
+          {/* How to play trigger */}
           <button
-            onClick={() => setShowRules(true)}
+            onClick={() => setShowRulesModal(true)}
             style={{
-              background: "transparent", border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 6, color: "#333355", fontSize: 10, letterSpacing: 2,
-              cursor: "pointer", padding: "6px 16px", fontFamily: "inherit",
+              background: "transparent", border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 6, color: "#555577", fontSize: 10, letterSpacing: 2,
+              cursor: "pointer", padding: "6px 18px", fontFamily: "inherit",
               margin: "12px 0 18px",
             }}
           >? &nbsp;HOW TO PLAY</button>
-          )}
 
           <div style={{ color: "#555577", fontSize: 10, letterSpacing: 4, marginBottom: 16 }}>CHOOSE YOUR MODE</div>
 
