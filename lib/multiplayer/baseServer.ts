@@ -145,6 +145,11 @@ export abstract class BaseGameServer implements Party.Server {
             ...s,
             color: s.color === colors[0] ? colors[1] : colors[0],
           }));
+          // Notify each player of their new color before the start broadcast
+          for (const conn of this.room.getConnections()) {
+            const slot = this.slots.find((s) => s.id === conn.id);
+            if (slot) this.send(conn, { type: 'assigned', color: slot.color });
+          }
           this.broadcast({
             type: 'start',
             players: this.slots.map((s) => ({ name: s.name, color: s.color })),

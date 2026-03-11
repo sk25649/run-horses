@@ -77,13 +77,21 @@ export function useMinesPartyGame(
       switch (msg.type) {
         case 'assigned': setMyColor(msg.color); break;
         case 'waiting': setStatus('waiting'); break;
-        case 'start':
-          setPlayers(msg.players as OnlinePlayer[]);
+        case 'start': {
+          const startPlayers = msg.players as OnlinePlayer[];
+          setPlayers(startPlayers);
           setGameState(msg.gameState as GameState);
           setLastTo(null);
           setStatus('playing');
           setOpponentWantsRematch(false);
+          // Refresh myColor — colors swap on rematch and `assigned` may arrive first,
+          // but derive it from players as a belt-and-suspenders fallback
+          if (joinedNameRef.current) {
+            const me = startPlayers.find((p) => p.name === joinedNameRef.current);
+            if (me) setMyColor(me.color);
+          }
           break;
+        }
         case 'sync':
           setGameState(msg.gameState as GameState);
           if (msg.lastMove) {

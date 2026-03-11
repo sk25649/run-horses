@@ -258,9 +258,12 @@ export default function GameScene() {
     sessionStorage.setItem('mo_session_v2', JSON.stringify({ gameMode, difficulty, gameState, localMines, placementTurn }));
   }, [gameMode, difficulty, gameState, localMines, placementTurn]);
 
-  // ── Online game start sound ───────────────────────────────────────────────
+  // ── Online game start / rematch: reset local placement state ─────────────
   useEffect(() => {
     if (gameMode === 'online' && partyGame.status === 'playing' && partyGame.gameState.phase === 'placement') {
+      setPlacingMines([]);
+      setDisplayWinner(null);
+      setLastTo(null);
       playGameStart();
     }
   }, [gameMode, partyGame.status]); // eslint-disable-line react-hooks/exhaustive-deps
