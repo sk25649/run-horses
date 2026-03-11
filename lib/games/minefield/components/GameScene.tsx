@@ -525,7 +525,7 @@ export default function GameScene() {
             placingMines={placingMinesToRender}
             showForbidden={activeGameState.phase === 'placement'}
             lastTo={activeLastTo}
-            hideInfo={gameMode === 'online' || (gameMode === 'ai' && difficulty === 'hard')}
+            hideInfo={gameMode === 'online' ? !activeGameState.hints : (gameMode === 'ai' && difficulty === 'hard')}
           />
           <Pieces gameState={activeGameState} />
         </Suspense>
@@ -571,6 +571,7 @@ export default function GameScene() {
         opponentWantsRematch={partyGame.opponentWantsRematch}
         onSendRematch={partyGame.sendRematch}
         onSubmitName={partyGame.submitJoin}
+        onSendSetHints={partyGame.sendSetHints}
         lastMoveResult={activeGameState.lastMoveResult}
       />
     </div>

@@ -18,6 +18,7 @@ export interface UseMinesPartyGameResult {
   sendMove: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void;
   sendPlaceMines: (positions: [number, number][]) => void;
   sendRematch: () => void;
+  sendSetHints: (value: boolean) => void;
 }
 
 export function useMinesPartyGame(
@@ -119,5 +120,9 @@ export function useMinesPartyGame(
     socketRef.current?.send(JSON.stringify({ type: 'rematch' }));
   }, []);
 
-  return { gameState, myColor, status, players, opponentWantsRematch, lastTo, submitJoin, sendMove, sendPlaceMines, sendRematch };
+  const sendSetHints = useCallback((value: boolean) => {
+    socketRef.current?.send(JSON.stringify({ type: 'set_hints', value }));
+  }, []);
+
+  return { gameState, myColor, status, players, opponentWantsRematch, lastTo, submitJoin, sendMove, sendPlaceMines, sendRematch, sendSetHints };
 }

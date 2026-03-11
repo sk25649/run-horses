@@ -60,6 +60,20 @@ export default class MinefieldServer extends BaseGameServer {
     let msg: { type: string; [k: string]: unknown };
     try { msg = JSON.parse(message as string); } catch { return; }
 
+    if (msg.type === 'set_hints') {
+      // Only the host (white/slot 0) can set this, and only before the game starts
+      if (this.gameStarted) return;
+      const slot = this.slots.find(s => s.id === sender.id);
+      if (!slot || slot.color !== 'white') return;
+      this._state = { ...this._state, hints: Boolean(msg.value) };
+      this.broadcast({
+        type: 'sync',
+        gameState: this._state,
+        lastMove: null,
+      } as unknown as Parameters<typeof this.broadcast>[0]);
+      return;
+    }
+
     if (msg.type === 'place_mines') {
       if (!this.gameStarted) return;
       const slot = this.slots.find(s => s.id === sender.id);

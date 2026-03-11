@@ -37,6 +37,7 @@ export interface GameState {
   winner: Player | 'draw' | null;
   moveCount: number;
   lastMoveResult: MoveResult | null;
+  hints: boolean; // show adjacency numbers + mine overlays (set by host before game starts)
 }
 
 export interface AIMove { toRow: number; toCol: number }
@@ -112,6 +113,7 @@ export function createInitialState(): GameState {
     winner: null,
     moveCount: 0,
     lastMoveResult: null,
+    hints: false,
   };
 }
 
