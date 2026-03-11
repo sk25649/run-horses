@@ -98,6 +98,7 @@ interface BoardProps {
   placingMines?: [number, number][];   // mines being placed this session
   showForbidden?: boolean;             // placement phase: dim forbidden zones
   lastTo?: [number, number] | null;
+  hideInfo?: boolean;                  // hard mode: hide adjacency numbers + mine overlays
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -109,6 +110,7 @@ export default function Board({
   placingMines = [],
   showForbidden = false,
   lastTo,
+  hideInfo = false,
 }: BoardProps) {
   const baseRef      = useRef<THREE.InstancedMesh>(null!);
   const treasureRef  = useRef<THREE.InstancedMesh>(null!);
@@ -180,7 +182,7 @@ export default function Board({
     allCells.forEach(([r, c]) => {
       const cell = gameState.cells[r][c];
       const p = gridToWorld(r, c);
-      if (cell.exploded) {
+      if (!hideInfo && cell.exploded) {
         dummy.position.set(p.x, 0.01, p.z);
         dummy.scale.set(1, 1, 1);
         dummy.updateMatrix();
@@ -196,7 +198,7 @@ export default function Board({
     explodedRef.current.count = ei;
     steppedRef.current.instanceMatrix.needsUpdate = true;
     explodedRef.current.instanceMatrix.needsUpdate = true;
-  }, [gameState.cells]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gameState.cells, hideInfo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Reactive: valid moves highlight ─────────────────────────────────────────
   useEffect(() => {
@@ -385,12 +387,11 @@ export default function Board({
         );
       })}
 
-      {/* ── Adjacency numbers on stepped cells ──────────────────────────── */}
-      {gameState.cells.flatMap((row, r) =>
+      {/* ── Adjacency numbers on stepped cells (hidden in hard mode) ────── */}
+      {!hideInfo && gameState.cells.flatMap((row, r) =>
         row.map((cell, c) => {
           if (!cell.stepped || cell.exploded) return null;
           const count = cell.adjacentCount;
-          if (count === 0) return null;
           const p = gridToWorld(r, c);
           return (
             <Text

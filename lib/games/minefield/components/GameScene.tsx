@@ -525,6 +525,7 @@ export default function GameScene() {
             placingMines={placingMinesToRender}
             showForbidden={activeGameState.phase === 'placement'}
             lastTo={activeLastTo}
+            hideInfo={gameMode === 'ai' && difficulty === 'hard'}
           />
           <Pieces gameState={activeGameState} />
         </Suspense>
