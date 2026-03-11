@@ -539,6 +539,44 @@ AI must support 3 levels. Typical implementation — minimax with depth scaling:
 - **`handleChangeMode` must remove the current session key** — using the old key leaves stale state that keeps restoring.
 - **Online `activeGameState` comes from the hook**, not local `gameState`. Always alias: `const activeGameState = gameMode === 'online' ? partyGame.gameState : gameState`.
 - **3D canvas must be `ssr: false`** via dynamic import — Three.js requires browser APIs.
+- **Camera conditions must use `activeGameState`, not local `gameState`** — e.g. `cameraGoTop = activeGameState.phase === 'placement'`. Using local state means the camera stays locked in online mode because local state never updates.
+- **Server swaps colors on rematch but doesn't auto-notify clients** — `BaseGameServer` swaps slot colors but the client's `myColor` stays stale. Fix: after the swap, iterate `this.room.getConnections()` and send each player a fresh `{ type: 'assigned', color }` before broadcasting `start`. Also refresh `myColor` in the `start` handler from the players array as a fallback.
+- **Reset local placement state on online rematch** — `handleReset` returns early in online mode, so `placingMines` / `displayWinner` / `lastTo` are never cleared. Add a `useEffect` watching `partyGame.status + partyGame.gameState.phase` to reset them when the placement phase begins.
+
+---
+
+## OG Images (Next.js ImageResponse / Satori)
+
+`opengraph-image.tsx` files use Satori under the hood. Satori is **not a full CSS engine** — many properties silently break rendering and produce a blank image or a cryptic error.
+
+### Unsupported properties — never use these
+
+| Property | Workaround |
+|---|---|
+| `inset: 0` | Use `top: 0, right: 0, bottom: 0, left: 0` |
+| `transform` (any value) | Reposition with static `top/left` offsets instead |
+| `textShadow` | Remove; rely on color contrast |
+| `boxShadow` with `inset` | Remove the `inset` keyword; outer shadows only |
+| `zIndex` | Remove; layer with DOM order + `position: absolute` |
+
+### Required on every element with children
+
+Every `<div>` (and other block elements) that has **more than one child node** must have `display: 'flex'` or `display: 'none'`. Omitting it throws: _"Expected `<div>` to have explicit `display: flex` or `display: none`"_.
+
+Safe pattern — add `display: 'flex'` to every div regardless:
+
+```tsx
+<div style={{ display: 'flex', flexDirection: 'column', ... }}>
+  <div style={{ display: 'flex', ... }}>text</div>
+  <div style={{ display: 'flex', ... }}>text</div>
+</div>
+```
+
+### Diagnosing a blank OG image
+
+1. Visit `/your-route/opengraph-image` or `/your-route/api/og` directly in the browser — you'll see the Satori error instead of a blank image.
+2. Check the Vercel function logs for the edge runtime error.
+3. Strip the JSX down to a minimal case and add properties back one by one.
 
 ---
 
