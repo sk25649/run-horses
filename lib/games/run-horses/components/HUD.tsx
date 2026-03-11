@@ -1484,7 +1484,7 @@ export default function HUD({
 
           {/* Share link box */}
           {onlineRoomId && (() => {
-            const link = `${typeof window !== "undefined" ? window.location.origin : ""}/?r=${onlineRoomId}`;
+            const link = `${typeof window !== "undefined" ? window.location.origin : ""}${typeof window !== "undefined" ? window.location.pathname : ""}?r=${onlineRoomId}`;
             return (
               <div style={{
                 background: "rgba(255,255,255,0.04)",

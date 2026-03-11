@@ -86,7 +86,7 @@ export default class MinefieldServer extends BaseGameServer {
       this.broadcast({
         type: 'sync',
         gameState: this._state,
-        lastTo: null,
+        lastMove: null,
       } as unknown as Parameters<typeof this.broadcast>[0]);
       return;
     }

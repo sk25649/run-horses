@@ -304,6 +304,16 @@ export default function HUD({
             <div style={{ ...val, color: turnColor, fontSize: isMobile ? 11 : 13 }}>{turnLabel}</div>
           </div>
 
+          {/* Score */}
+          <div style={{ ...panel, flex: "0 0 auto", padding: isMobile ? "7px 12px" : "10px 18px" }}>
+            <div style={{ ...lbl, fontSize: isMobile ? 8 : 9 }}>SCORE</div>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <span style={{ ...val, color: "#2277ff", fontSize: isMobile ? 11 : 13 }}>{scores.white}</span>
+              <span style={{ color: "#333355", fontSize: isMobile ? 10 : 11 }}>:</span>
+              <span style={{ ...val, color: "#ff8800", fontSize: isMobile ? 11 : 13 }}>{scores.black}</span>
+            </div>
+          </div>
+
           {/* Mines remaining */}
           {!isMobile && (
             <div style={{ ...panel, minWidth: 90 }}>
@@ -464,8 +474,11 @@ export default function HUD({
             You can also tap on the 3D board behind this panel
           </div>
 
-          {/* Online: waiting for opponent */}
-          {gameMode === 'online' && gameState.whitePlaced && !gameState.blackPlaced && myColor === 'white' && (
+          {/* Online: waiting for opponent to place */}
+          {gameMode === 'online' && (
+            (myColor === 'white' && gameState.whitePlaced && !gameState.blackPlaced) ||
+            (myColor === 'black' && gameState.blackPlaced && !gameState.whitePlaced)
+          ) && (
             <div style={{ color: "#f5c842", fontSize: 11, letterSpacing: 3, marginBottom: 16 }}>WAITING FOR OPPONENT TO PLACE MINES...</div>
           )}
           {gameMode === 'online' && gameState.blackPlaced && !gameState.whitePlaced && myColor === 'black' && (
@@ -577,18 +590,18 @@ export default function HUD({
               </div>
             </button>
 
-            {/* Online card — coming soon */}
-            <div style={{
-              background: "rgba(4,4,14,0.5)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12,
-              padding: isMobile ? "18px 20px" : "24px 28px", textAlign: "left",
+            {/* Online card */}
+            <button className="mode-card" onClick={() => { track('game_started', { mode: 'online', difficulty: 'online' }); onSelectMode("online"); }} style={{
+              background: "rgba(4,4,14,0.92)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 12,
+              padding: isMobile ? "18px 20px" : "24px 28px", cursor: "pointer", textAlign: "left",
               width: isMobile ? "100%" : undefined, minWidth: isMobile ? undefined : 165,
-              alignSelf: "stretch", opacity: 0.45, cursor: "not-allowed",
+              fontFamily: "inherit", transition: "border-color 0.15s", alignSelf: "stretch",
             }}>
               <div style={{ color: "#ffffff", fontSize: 13, fontWeight: 800, letterSpacing: 2, marginBottom: 12, textAlign: "center" }}>ONLINE</div>
               <div style={{ color: "#666688", fontSize: 11, lineHeight: 1.8, textAlign: "center" }}>
-                Coming soon.<br />Real-time multiplayer<br />in progress.
+                Play a friend online.<br />Simultaneous mine placement.<br />Real-time multiplayer.
               </div>
-            </div>
+            </button>
           </div>
 
           <button onClick={handleShare} style={{
@@ -714,7 +727,7 @@ export default function HUD({
           <div style={{ fontSize: isMobile ? 20 : 30, fontWeight: 900, color: "#ffffff", letterSpacing: 3, marginBottom: 8 }}>WAITING FOR OPPONENT</div>
           <div style={{ color: "#555577", fontSize: 11, letterSpacing: 3, marginBottom: 32 }}>SHARE THIS LINK TO INVITE</div>
           {onlineRoomId && (() => {
-            const link = `${typeof window !== "undefined" ? window.location.origin : ""}/?r=${onlineRoomId}`;
+            const link = `${typeof window !== "undefined" ? window.location.origin : ""}${typeof window !== "undefined" ? window.location.pathname : ""}?r=${onlineRoomId}`;
             return (
               <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, padding: "12px 20px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, maxWidth: isMobile ? "85vw" : 420, width: "100%" }}>
                 <span style={{ color: "#ff4444", fontSize: isMobile ? 11 : 13, fontWeight: 700, letterSpacing: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{link}</span>

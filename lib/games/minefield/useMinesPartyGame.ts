@@ -78,7 +78,10 @@ export function useMinesPartyGame(
           break;
         case 'sync':
           setGameState(msg.gameState as GameState);
-          if (msg.lastTo) setLastTo(msg.lastTo as [number, number]);
+          if (msg.lastMove) {
+            const lm = msg.lastMove as { toRow: number; toCol: number };
+            setLastTo([lm.toRow, lm.toCol]);
+          }
           break;
         case 'opponent_left': setStatus('opponent_left'); break;
         case 'room_full': setStatus('room_full'); break;

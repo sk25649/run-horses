@@ -123,6 +123,7 @@ export function countAdjacentMines(
   blackMines: [number, number][],
   row: number,
   col: number,
+  cells?: CellState[][],
 ): number {
   const wSet = new Set(whiteMines.map(([r, c]) => `${r},${c}`));
   const bSet = new Set(blackMines.map(([r, c]) => `${r},${c}`));
@@ -131,8 +132,12 @@ export function countAdjacentMines(
     const nr = row + dr, nc = col + dc;
     if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
     const key = `${nr},${nc}`;
-    if (wSet.has(key)) count++;
-    if (bSet.has(key)) count++;
+    if (wSet.has(key) || bSet.has(key)) {
+      count++;
+    } else if (cells?.[nr][nc].exploded) {
+      // Mine was already detonated — still counts toward adjacency
+      count++;
+    }
   }
   return count;
 }
@@ -240,7 +245,7 @@ export function applyMove(
       result = { type: 'treasure', value, points: value };
     } else {
       // Safe cell — score only if not already stepped by anyone
-      const adj = countAdjacentMines(newWhiteMines, newBlackMines, toRow, toCol);
+      const adj = countAdjacentMines(newWhiteMines, newBlackMines, toRow, toCol, state.cells);
       const points = cells[toRow][toCol].stepped ? 0 : adj;
       scores[player] += points;
       cells[toRow][toCol].adjacentCount = adj;

@@ -366,8 +366,7 @@ export default function GameScene() {
 
     if (gameMode === 'online') {
       partyGame.sendPlaceMines(placingMines);
-      // Update local state to reflect placement sent
-      setGameState(prev => applyMinePlacement(prev, partyGame.myColor as Player));
+      setPlacingMines([]); // clear grid — server will broadcast updated state
       return;
     }
 
@@ -436,7 +435,7 @@ export default function GameScene() {
     setDisplayWinner(null);
     setAiThinking(false);
     setOnlineRoomId(null);
-    window.history.replaceState({}, '', '/');
+    window.history.replaceState({}, '', window.location.pathname);
   };
 
   // ── Select mode ───────────────────────────────────────────────────────────
@@ -450,7 +449,7 @@ export default function GameScene() {
       setPlacingMines([]);
       setDisplayWinner(null);
       setLastTo(null);
-      window.history.replaceState({}, '', `/?r=${roomId}`);
+      window.history.replaceState({}, '', `${window.location.pathname}?r=${roomId}`);
       return;
     }
     const d = diff ?? difficulty;
@@ -479,7 +478,7 @@ export default function GameScene() {
 
   return (
     <div style={{
-      width: '100vw', height: '100vh', background: '#d8d8d8',
+      width: '100vw', height: '100vh', background: '#1a1a2e',
       fontFamily: "'SF Mono', 'Fira Code', monospace", overflow: 'hidden',
     }}>
       <Canvas
@@ -491,7 +490,7 @@ export default function GameScene() {
         <directionalLight position={[6, 14, 8]} intensity={1.6} color="#ffffff" castShadow shadow-mapSize={[2048, 2048]} shadow-camera-near={0.1} shadow-camera-far={60} shadow-camera-left={-12} shadow-camera-right={12} shadow-camera-top={12} shadow-camera-bottom={-12} />
         <directionalLight position={[-8, 6, -6]} intensity={0.3} color="#224433" />
         <TreasureLights />
-        <color attach="background" args={['#d8d8d8']} />
+        <color attach="background" args={['#1a1a2e']} />
         
 
         <MobileTapHandler onCellClick={handleCellClick} />

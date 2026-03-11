@@ -478,7 +478,7 @@ export default function GameScene() {
     setLastMove(null);
     setMoveHistory([]);
     setGameMode(null);
-    window.history.replaceState({}, '', '/');
+    window.history.replaceState({}, '', window.location.pathname);
   };
 
   const handleSelectMode = (mode: GameMode, diff?: Difficulty) => {
@@ -489,7 +489,7 @@ export default function GameScene() {
       setDisplayWinner(null);
       setLastMove(null);
       setMoveHistory([]);
-      window.history.replaceState({}, '', `/?r=${roomId}`);
+      window.history.replaceState({}, '', `${window.location.pathname}?r=${roomId}`);
       track('game_started', { mode: 'online', difficulty: 'online' });
       return;
     }
