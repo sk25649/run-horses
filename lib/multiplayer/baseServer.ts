@@ -11,6 +11,8 @@ export abstract class BaseGameServer implements Party.Server {
   protected rematchVotes = new Set<string>();
   protected gameStarted = false;
   protected lastMove: LastMove | null = null;
+  // Tracks conn ids that are in a same-_pk reconnect (new conn arrived before old conn closed)
+  private reconnectingIds = new Set<string>();
 
   /** Return the initial game state */
   abstract createInitialState(): unknown;
@@ -49,9 +51,19 @@ export abstract class BaseGameServer implements Party.Server {
     const colors = this.getColors();
 
     if (this.gameStarted) {
+      // Same-_pk reconnect: new connection arrived before the old one's close event fired.
+      // Suppress the upcoming onClose so it doesn't broadcast opponent_left.
+      const sameSlot = this.slots.find((s) => s.id === conn.id && s.connected);
+      if (sameSlot) {
+        this.reconnectingIds.add(conn.id);
+        this.send(conn, { type: 'assigned', color: sameSlot.color });
+        return;
+      }
+
       const disconnected = this.slots.find((s) => !s.connected);
       if (disconnected) {
         disconnected.id = conn.id;
+        disconnected.connected = true;
         this.send(conn, { type: 'assigned', color: disconnected.color });
       } else {
         this.send(conn, { type: 'room_full' });
@@ -93,6 +105,18 @@ export abstract class BaseGameServer implements Party.Server {
             gameState: this.getGameState(),
           });
           this.broadcast({ type: 'opponent_rejoined', name }, [sender.id]);
+          break;
+        }
+
+        // Game is active and slot is still connected: this is a same-_pk reconnect join.
+        // Re-send the current game state so the reconnecting client recovers its UI.
+        if (this.gameStarted) {
+          slot.name = name;
+          this.send(sender, {
+            type: 'start',
+            players: this.slots.map((s) => ({ name: s.name, color: s.color })),
+            gameState: this.getGameState(),
+          });
           break;
         }
 
@@ -164,6 +188,12 @@ export abstract class BaseGameServer implements Party.Server {
   }
 
   onClose(conn: Party.Connection) {
+    // If this close is the old connection from a same-_pk reconnect, ignore it.
+    if (this.reconnectingIds.has(conn.id)) {
+      this.reconnectingIds.delete(conn.id);
+      return;
+    }
+
     const slot = this.slots.find((s) => s.id === conn.id);
     if (!slot) return;
 
