@@ -853,11 +853,12 @@ export default function HUD({
           }}
         >
           {/* Back to portal */}
-          <a href="/" style={{
+          <button onClick={() => { sessionStorage.removeItem('rh_session'); window.location.href = '/'; }} style={{
             display: "inline-block", marginBottom: 20,
             color: "#44445a", fontSize: 10, letterSpacing: 3, textDecoration: "none",
             border: "1px solid rgba(255,255,255,0.08)", borderRadius: 5, padding: "6px 14px",
-          }}>← ALL GAMES</a>
+            background: "transparent", cursor: "pointer", fontFamily: "inherit",
+          }}>← ALL GAMES</button>
 
           {/* Logo */}
           <div style={{ marginBottom: 4, textAlign: "center" }}>

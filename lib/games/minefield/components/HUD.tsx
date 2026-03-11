@@ -213,9 +213,6 @@ export default function HUD({
     setShowRulesModal(false);
   };
 
-  const [showRules, setShowRules] = useState(false);
-  useEffect(() => { if (localStorage.getItem('mo_hide_rules') !== '1') setShowRules(true); }, []);
-
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
 
@@ -274,6 +271,89 @@ export default function HUD({
         .mode-fade { animation: mode-fade 0.35s ease both; }
         .mode-card:hover { background: rgba(255,255,255,0.04) !important; border-color: rgba(255,255,255,0.2) !important; }
       `}</style>
+
+      {/* ══ HOW TO PLAY MODAL ════════════════════════════════════════════════ */}
+      {showRulesModal && (
+        <div className="mode-fade" style={{
+          position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          background: "rgba(2,2,10,0.88)", backdropFilter: "blur(8px)", zIndex: 90,
+          padding: "24px 16px", overflowY: "auto",
+        }} onClick={() => dismissRules(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            width: "100%", maxWidth: 480,
+            background: "rgba(12,12,28,0.98)", border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: 16, padding: "28px 24px",
+            display: "flex", flexDirection: "column", gap: 12,
+            fontFamily: "'SF Mono','Fira Code',monospace",
+          }}>
+            <div style={{ textAlign: "center", fontSize: 20, fontWeight: 900, letterSpacing: 3, color: "#ffffff", marginBottom: 4 }}>
+              HOW TO PLAY
+            </div>
+
+            {/* Step 1 */}
+            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "12px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#888aaa", marginBottom: 6 }}>STEP 1 — PLACE YOUR MINES 💣</div>
+              <div style={{ fontSize: 12, color: "#ccccee", lineHeight: 1.6 }}>
+                Each player secretly places <span style={{ color: "#ff4444", fontWeight: 700 }}>5 mines</span> on the board before the game starts. Tap any tile to place a mine — or hit <span style={{ color: "#44dd88", fontWeight: 700 }}>RANDOM</span> to place them all at once. Your opponent can't see where you placed them!
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "12px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#888aaa", marginBottom: 6 }}>STEP 2 — MOVE YOUR PIECE 🟦🟧</div>
+              <div style={{ fontSize: 12, color: "#ccccee", lineHeight: 1.6 }}>
+                <span style={{ color: "#2277ff", fontWeight: 700 }}>BLUE</span> goes first. On your turn, move your piece to any adjacent tile (including diagonals). You can only move to empty tiles — you can't step on your opponent.
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "12px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#888aaa", marginBottom: 6 }}>STEP 3 — SCORE POINTS ✨</div>
+              <div style={{ fontSize: 12, color: "#ccccee", lineHeight: 1.6 }}>
+                When you step onto a tile, you score points equal to the number of <span style={{ color: "#ff4444", fontWeight: 700 }}>enemy mines</span> surrounding it (all 8 directions). Land on a <span style={{ color: "#f5c842", fontWeight: 700 }}>★ TREASURE</span> tile for a big bonus!
+              </div>
+            </div>
+
+            {/* Step 4 */}
+            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "12px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#888aaa", marginBottom: 6 }}>STEP 4 — AVOID MINES 💥</div>
+              <div style={{ fontSize: 12, color: "#ccccee", lineHeight: 1.6 }}>
+                If you step on one of <span style={{ color: "#ff4444", fontWeight: 700 }}>your own mines</span>, it explodes! You lose <span style={{ color: "#ff4444", fontWeight: 700 }}>5 points</span> and the mine is gone. Use the number clues to remember where enemy mines are.
+              </div>
+            </div>
+
+            {/* Step 5 */}
+            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "12px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#888aaa", marginBottom: 6 }}>STEP 5 — WIN THE GAME 🏆</div>
+              <div style={{ fontSize: 12, color: "#ccccee", lineHeight: 1.6 }}>
+                The game ends when all mines have been detonated. The player with the <span style={{ color: "#f5c842", fontWeight: 700 }}>most points</span> wins!
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginTop: 8 }}>
+              <button
+                onClick={() => dismissRules(false)}
+                style={{
+                  width: "100%", padding: "13px 0", borderRadius: 10, border: "none",
+                  background: "#2277ff", color: "#ffffff", fontSize: 14, fontWeight: 800,
+                  letterSpacing: 3, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                GOT IT
+              </button>
+              <button
+                onClick={() => dismissRules(true)}
+                style={{
+                  background: "none", border: "none", color: "#555577", fontSize: 11,
+                  letterSpacing: 2, cursor: "pointer", fontFamily: "inherit", padding: "4px 0",
+                }}
+              >
+                DON'T SHOW THIS AGAIN
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══ PASS-DEVICE SCREEN (PvP only) ════════════════════════════════════ */}
       {showPassScreen && (
@@ -520,11 +600,12 @@ export default function HUD({
           background: "rgba(4,4,14,0.78)", backdropFilter: "blur(6px)",
           zIndex: 60, overflowY: "auto", padding: "24px 16px",
         }}>
-          <a href="/" style={{
+          <button onClick={() => { sessionStorage.removeItem('mo_session'); sessionStorage.removeItem('mo_session_v2'); window.location.href = '/'; }} style={{
             display: "inline-block", marginBottom: 20,
             color: "#44445a", fontSize: 10, letterSpacing: 3, textDecoration: "none",
             border: "1px solid rgba(255,255,255,0.08)", borderRadius: 5, padding: "6px 14px",
-          }}>← ALL GAMES</a>
+            background: "transparent", cursor: "pointer", fontFamily: "inherit",
+          }}>← ALL GAMES</button>
 
           <div style={{ marginBottom: 4, textAlign: "center" }}>
             <div style={{ fontSize: isMobile ? 24 : 38, fontWeight: 900, color: "#ffffff", letterSpacing: isMobile ? 2 : 4 }}>
