@@ -262,14 +262,32 @@ export default function GameScene() {
     }
   }, [gameMode, partyGame.gameState.board]);
 
-  // ── Detect ?r=ROOMID in URL on mount (auto-join) ─────────────────────────────
+  // ── Detect ?r=ROOMID in URL on mount / local session restore ─────────────────
   useEffect(() => {
     const roomId = new URLSearchParams(window.location.search).get('r');
     if (roomId) {
       setOnlineRoomId(roomId);
       setGameMode('online');
+      return;
+    }
+    // Restore local session from sessionStorage
+    const saved = sessionStorage.getItem('rh_session');
+    if (saved) {
+      try {
+        const { gameMode: gm, difficulty: d, gameState: gs, moveHistory: mh } = JSON.parse(saved);
+        setGameMode(gm);
+        if (d) setDifficulty(d);
+        setGameState(gs);
+        setMoveHistory(mh ?? []);
+      } catch { /* ignore corrupt data */ }
     }
   }, []);
+
+  // ── Persist local session to sessionStorage ────────────────────────────────
+  useEffect(() => {
+    if (gameMode === null || gameMode === 'online') return;
+    sessionStorage.setItem('rh_session', JSON.stringify({ gameMode, difficulty, gameState, moveHistory }));
+  }, [gameMode, difficulty, gameState, moveHistory]);
 
   // Load streak + mute from localStorage on mount
   useEffect(() => {
@@ -470,6 +488,7 @@ export default function GameScene() {
   };
 
   const handleChangeMode = () => {
+    sessionStorage.removeItem('rh_session');
     setAiThinking(false);
     setGameState(createInitialState());
     setOnlineRoomId(null);
