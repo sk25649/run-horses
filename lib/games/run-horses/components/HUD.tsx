@@ -852,6 +852,13 @@ export default function HUD({
             padding: "24px 16px",
           }}
         >
+          {/* Back to portal */}
+          <a href="/" style={{
+            display: "inline-block", marginBottom: 20,
+            color: "#44445a", fontSize: 10, letterSpacing: 3, textDecoration: "none",
+            border: "1px solid rgba(255,255,255,0.08)", borderRadius: 5, padding: "6px 14px",
+          }}>← ALL GAMES</a>
+
           {/* Logo */}
           <div style={{ marginBottom: 4, textAlign: "center" }}>
             <div

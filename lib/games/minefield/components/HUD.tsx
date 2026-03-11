@@ -206,6 +206,22 @@ export default function HUD({
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
 
+  // Point flash — shown when points are scored/lost
+  const [pointFlash, setPointFlash] = useState<{ text: string; color: string; key: number } | null>(null);
+  useEffect(() => {
+    if (!lastMoveResult || lastMoveResult.points === 0) return;
+    const justMoved: Player = gameState.currentTurn === 'white' ? 'black' : 'white';
+    const color = lastMoveResult.type === 'mine' ? '#ff4444'
+      : lastMoveResult.type === 'treasure' ? '#f5c842'
+      : justMoved === 'white' ? '#2277ff' : '#ff8800';
+    const text = lastMoveResult.type === 'mine' ? '💥 −5'
+      : lastMoveResult.type === 'treasure' ? `✨ +${lastMoveResult.points}`
+      : `+${lastMoveResult.points}`;
+    setPointFlash({ text, color, key: Date.now() });
+    const t = setTimeout(() => setPointFlash(null), 1600);
+    return () => clearTimeout(t);
+  }, [lastMoveResult]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleShare = async () => {
     if (sharing) return;
     setSharing(true);
@@ -230,23 +246,16 @@ export default function HUD({
       : currentTurn === "white" ? "○ BLUE" : "● ORANGE";
   const turnColor = currentTurn === "white" ? "#2277ff" : "#ff8800";
 
-  const resultText = lastMoveResult
-    ? lastMoveResult.type === 'mine'
-      ? `💥 MINE! ${lastMoveResult.points} pts → teleport`
-      : lastMoveResult.type === 'treasure'
-        ? `✨ TREASURE! +${lastMoveResult.points} pts`
-        : lastMoveResult.adjacentCount === 0
-          ? "SAFE — 0 adjacent"
-          : `SAFE — +${lastMoveResult.points} pts (${lastMoveResult.adjacentCount} adj)`
-    : null;
-
-  const resultColor = lastMoveResult?.type === 'mine' ? '#ff4444'
-    : lastMoveResult?.type === 'treasure' ? '#f5c842' : '#44dd88';
-
   return (
     <>
       <style>{`
         @keyframes ai-pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
+        @keyframes point-rise {
+          0%   { opacity: 0; transform: translateX(-50%) translateY(0px) scale(0.7); }
+          12%  { opacity: 1; transform: translateX(-50%) translateY(-8px) scale(1.1); }
+          40%  { opacity: 1; transform: translateX(-50%) translateY(-28px) scale(1); }
+          100% { opacity: 0; transform: translateX(-50%) translateY(-70px) scale(0.9); }
+        }
         @keyframes mode-fade { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         .ai-blink { animation: ai-pulse 0.9s ease-in-out infinite; }
         .mode-fade { animation: mode-fade 0.35s ease both; }
@@ -295,29 +304,11 @@ export default function HUD({
             <div style={{ ...val, color: turnColor, fontSize: isMobile ? 11 : 13 }}>{turnLabel}</div>
           </div>
 
-          {/* Scores */}
-          <div style={{ ...panel, flex: "0 0 auto", padding: isMobile ? "7px 12px" : "10px 18px" }}>
-            <div style={{ ...lbl, fontSize: isMobile ? 8 : 9 }}>SCORE</div>
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <span style={{ ...val, color: "#2277ff", fontSize: isMobile ? 11 : 13 }}>{scores.white}</span>
-              <span style={{ color: "#33334a", fontSize: 10 }}>:</span>
-              <span style={{ ...val, color: "#ff8800", fontSize: isMobile ? 11 : 13 }}>{scores.black}</span>
-            </div>
-          </div>
-
           {/* Mines remaining */}
           {!isMobile && (
             <div style={{ ...panel, minWidth: 90 }}>
               <div style={lbl}>MINES LEFT</div>
               <div style={{ ...val, color: "#ff4444" }}>{minesRemaining}</div>
-            </div>
-          )}
-
-          {/* Last result */}
-          {lastMoveResult && !isMobile && (
-            <div style={{ ...panel, minWidth: 200 }}>
-              <div style={lbl}>LAST MOVE</div>
-              <div style={{ ...val, color: resultColor, fontSize: 11 }}>{resultText}</div>
             </div>
           )}
 
@@ -371,14 +362,18 @@ export default function HUD({
         </div>
       )}
 
-      {/* ══ LAST RESULT — mobile only, shown as floating banner ══════════════ */}
-      {isMobile && lastMoveResult && phase === 'moving' && winner === null && !showPassScreen && (
-        <div style={{
-          position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)",
-          pointerEvents: "none", zIndex: 10,
-          ...panel, padding: "8px 16px", whiteSpace: "nowrap",
+      {/* ══ POINT FLASH — floats up and fades when points scored/lost ══════ */}
+      {pointFlash && phase === 'moving' && winner === null && (
+        <div key={pointFlash.key} style={{
+          position: "fixed", bottom: "42%", left: "50%",
+          fontSize: isMobile ? 38 : 52, fontWeight: 900,
+          color: pointFlash.color,
+          textShadow: `0 0 28px ${pointFlash.color}99`,
+          pointerEvents: "none", zIndex: 30, whiteSpace: "nowrap",
+          animation: "point-rise 1.5s ease-out forwards",
+          letterSpacing: 1, fontFamily: "inherit",
         }}>
-          <div style={{ color: resultColor, fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>{resultText}</div>
+          {pointFlash.text}
         </div>
       )}
 
@@ -499,6 +494,12 @@ export default function HUD({
           background: "rgba(4,4,14,0.78)", backdropFilter: "blur(6px)",
           zIndex: 60, overflowY: "auto", padding: "24px 16px",
         }}>
+          <a href="/" style={{
+            display: "inline-block", marginBottom: 20,
+            color: "#44445a", fontSize: 10, letterSpacing: 3, textDecoration: "none",
+            border: "1px solid rgba(255,255,255,0.08)", borderRadius: 5, padding: "6px 14px",
+          }}>← ALL GAMES</a>
+
           <div style={{ marginBottom: 4, textAlign: "center" }}>
             <div style={{ fontSize: isMobile ? 24 : 38, fontWeight: 900, color: "#ffffff", letterSpacing: isMobile ? 2 : 4 }}>
               MINES OF OBLIVION
@@ -576,18 +577,18 @@ export default function HUD({
               </div>
             </button>
 
-            {/* Online card */}
-            <button className="mode-card" onClick={() => { track('game_started', { mode: 'online', difficulty: 'online' }); onSelectMode("online"); }} style={{
-              background: "rgba(4,4,14,0.92)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 12,
-              padding: isMobile ? "18px 20px" : "24px 28px", cursor: "pointer", textAlign: "left",
+            {/* Online card — coming soon */}
+            <div style={{
+              background: "rgba(4,4,14,0.5)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12,
+              padding: isMobile ? "18px 20px" : "24px 28px", textAlign: "left",
               width: isMobile ? "100%" : undefined, minWidth: isMobile ? undefined : 165,
-              fontFamily: "inherit", transition: "border-color 0.15s", alignSelf: "stretch",
+              alignSelf: "stretch", opacity: 0.45, cursor: "not-allowed",
             }}>
               <div style={{ color: "#ffffff", fontSize: 13, fontWeight: 800, letterSpacing: 2, marginBottom: 12, textAlign: "center" }}>ONLINE</div>
               <div style={{ color: "#666688", fontSize: 11, lineHeight: 1.8, textAlign: "center" }}>
-                Play a friend online.<br />Simultaneous mine placement.<br />Real-time multiplayer.
+                Coming soon.<br />Real-time multiplayer<br />in progress.
               </div>
-            </button>
+            </div>
           </div>
 
           <button onClick={handleShare} style={{
