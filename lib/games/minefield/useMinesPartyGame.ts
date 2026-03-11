@@ -29,6 +29,7 @@ export function useMinesPartyGame(
   const socketRef = useRef<PartySocket | null>(null);
   const socketReadyRef = useRef(false);
   const pendingJoinRef = useRef<string | null>(null);
+  const joinedNameRef = useRef<string | null>(null); // tracks name after successful join (for reconnects)
 
   const [gameState, setGameState] = useState<GameState>(initialState);
   const [myColor, setMyColor] = useState<string | null>(null);
@@ -48,6 +49,7 @@ export function useMinesPartyGame(
     setLastTo(null);
     socketReadyRef.current = false;
     pendingJoinRef.current = null;
+    joinedNameRef.current = null;
 
     const socket = new PartySocket({
       host: process.env.NEXT_PUBLIC_PARTYKIT_HOST || 'localhost:1999',
@@ -58,8 +60,13 @@ export function useMinesPartyGame(
     socket.addEventListener('open', () => {
       socketReadyRef.current = true;
       if (pendingJoinRef.current !== null) {
-        socket.send(JSON.stringify({ type: 'join', name: pendingJoinRef.current }));
+        const name = pendingJoinRef.current;
         pendingJoinRef.current = null;
+        joinedNameRef.current = name;
+        socket.send(JSON.stringify({ type: 'join', name }));
+      } else if (joinedNameRef.current !== null) {
+        // Reconnect — re-send join silently to restore server slot
+        socket.send(JSON.stringify({ type: 'join', name: joinedNameRef.current }));
       } else {
         setStatus('name_required');
       }
@@ -101,6 +108,7 @@ export function useMinesPartyGame(
 
   const submitJoin = useCallback((name: string) => {
     localStorage.setItem(nameKey, name);
+    joinedNameRef.current = name;
     if (socketReadyRef.current && socketRef.current) {
       socketRef.current.send(JSON.stringify({ type: 'join', name }));
     } else {

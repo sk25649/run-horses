@@ -444,7 +444,7 @@ export default function GameScene() {
 
   // ── Change mode ───────────────────────────────────────────────────────────
   const handleChangeMode = () => {
-    sessionStorage.removeItem('mo_session');
+    sessionStorage.removeItem('mo_session_v2');
     setGameMode(null);
     setGameState(createInitialState());
     setLocalMines({ white: [], black: [] });
