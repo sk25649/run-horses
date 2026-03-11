@@ -51,9 +51,9 @@ export const BLACK_START: [number, number] = [0, 10];
 
 // Treasure positions — order determines base value assignment
 export const TREASURE_POSITIONS: [number, number][] = [
-  [5, 5],  // center
-  [0, 10], // top-right corner
-  [10, 0], // bottom-left corner
+  [5, 5],   // center
+  [0, 0],   // top-left corner
+  [10, 10], // bottom-right corner
 ];
 
 // Points awarded in order of collection (1st, 2nd, 3rd)
