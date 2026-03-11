@@ -14,6 +14,8 @@ import {
   isForbiddenForMine,
   ROWS,
   COLS,
+  WHITE_START,
+  BLACK_START,
 } from "@/lib/games/minefield/gameLogic";
 
 // ─── Confetti ─────────────────────────────────────────────────────────────────
@@ -90,14 +92,18 @@ function PlacementGrid({
   mines,
   onToggle,
   isMobile,
+  myColor,
 }: {
   mines: [number, number][];
   onToggle: (r: number, c: number) => void;
   isMobile: boolean;
+  myColor?: Player | null;
 }) {
   const size = isMobile ? 22 : 28;
   const gap = 2;
   const mineSet = new Set(mines.map(([r, c]) => `${r},${c}`));
+  const whiteKey = `${WHITE_START[0]},${WHITE_START[1]}`;
+  const blackKey = `${BLACK_START[0]},${BLACK_START[1]}`;
 
   return (
     <div style={{
@@ -114,30 +120,44 @@ function PlacementGrid({
           const key = `${r},${c}`;
           const forbidden = isForbiddenForMine(r, c);
           const hasMine = mineSet.has(key);
+          const isWhiteStart = key === whiteKey;
+          const isBlackStart = key === blackKey;
+          const isMyStart = myColor === 'white' ? isWhiteStart : myColor === 'black' ? isBlackStart : false;
+          const isOppStart = myColor === 'white' ? isBlackStart : myColor === 'black' ? isWhiteStart : false;
           return (
             <div
               key={key}
               onClick={() => !forbidden && onToggle(r, c)}
               style={{
                 width: size, height: size, borderRadius: 3,
-                background: forbidden
-                  ? "rgba(20,20,40,0.8)"
-                  : hasMine
-                    ? "#cc2222"
-                    : "rgba(60,60,90,0.6)",
-                border: forbidden
-                  ? "1px solid rgba(255,255,255,0.03)"
-                  : hasMine
-                    ? "1px solid #ff4444"
-                    : "1px solid rgba(255,255,255,0.08)",
+                background: hasMine
+                  ? "#cc2222"
+                  : isMyStart
+                    ? myColor === 'white' ? "rgba(34,119,255,0.5)" : "rgba(255,136,0,0.5)"
+                    : isOppStart
+                      ? "rgba(80,80,120,0.5)"
+                      : forbidden
+                        ? "rgba(20,20,40,0.8)"
+                        : "rgba(60,60,90,0.6)",
+                border: hasMine
+                  ? "1px solid #ff4444"
+                  : isMyStart
+                    ? `2px solid ${myColor === 'white' ? '#2277ff' : '#ff8800'}`
+                    : isOppStart
+                      ? "1px solid rgba(255,255,255,0.2)"
+                      : forbidden
+                        ? "1px solid rgba(255,255,255,0.03)"
+                        : "1px solid rgba(255,255,255,0.08)",
                 cursor: forbidden ? "not-allowed" : "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 8, color: hasMine ? "#ff8888" : "transparent",
+                fontSize: isMyStart || isOppStart ? 9 : 8,
+                color: hasMine ? "#ff8888" : isMyStart || isOppStart ? "#ffffff" : "transparent",
+                fontWeight: 700,
                 transition: "background 0.1s",
                 userSelect: "none",
               }}
             >
-              {hasMine ? "●" : ""}
+              {hasMine ? "●" : isMyStart ? "★" : isOppStart && myColor ? "○" : ""}
             </div>
           );
         })
@@ -545,26 +565,34 @@ export default function HUD({
           </div>
 
           {/* Mine counter */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-            <div style={{ fontSize: isMobile ? 26 : 34, fontWeight: 900, color: placingMines.length === MINE_COUNT ? "#44dd88" : "#ff4444" }}>
-              {placingMines.length}
-            </div>
-            <div style={{ color: "#555577", fontSize: 11 }}>/ {MINE_COUNT} mines placed</div>
-            <button
-              onClick={onRandomPlacement}
-              style={{ background: "transparent", border: "1px solid #44dd88", borderRadius: 5, color: "#44dd88", padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 10, letterSpacing: 1 }}
-            >RANDOM</button>
-            {placingMines.length > 0 && (
-              <button
-                onClick={() => onToggleMine(-1, -1)}
-                style={{ background: "transparent", border: "1px solid #444466", borderRadius: 5, color: "#444466", padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 10, letterSpacing: 1 }}
-              >CLEAR</button>
-            )}
-          </div>
+          {(() => {
+            const confirmed = gameMode === 'online' && (myColor === 'white' ? gameState.whitePlaced : gameState.blackPlaced);
+            const displayCount = confirmed ? MINE_COUNT : placingMines.length;
+            return (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                <div style={{ fontSize: isMobile ? 26 : 34, fontWeight: 900, color: displayCount === MINE_COUNT ? "#44dd88" : "#ff4444" }}>
+                  {displayCount}
+                </div>
+                <div style={{ color: "#555577", fontSize: 11 }}>/ {MINE_COUNT} mines placed</div>
+                {!confirmed && (
+                  <button
+                    onClick={onRandomPlacement}
+                    style={{ background: "transparent", border: "1px solid #44dd88", borderRadius: 5, color: "#44dd88", padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 10, letterSpacing: 1 }}
+                  >RANDOM</button>
+                )}
+                {!confirmed && placingMines.length > 0 && (
+                  <button
+                    onClick={() => onToggleMine(-1, -1)}
+                    style={{ background: "transparent", border: "1px solid #444466", borderRadius: 5, color: "#444466", padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 10, letterSpacing: 1 }}
+                  >CLEAR</button>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Placement grid (2D mini-map) */}
           <div style={{ marginBottom: 16, overflow: "auto" }}>
-            <PlacementGrid mines={placingMines} onToggle={onToggleMine} isMobile={isMobile} />
+            <PlacementGrid mines={placingMines} onToggle={onToggleMine} isMobile={isMobile} myColor={gameMode === 'online' ? myColor : placementTurn} />
           </div>
 
           <div style={{ fontSize: 10, color: "#444466", letterSpacing: 2, marginBottom: 16, textAlign: "center" }}>

@@ -91,15 +91,17 @@ function MobileTapHandler({ onCellClick }: { onCellClick: (r: number, c: number)
 
 // ─── Camera controller ────────────────────────────────────────────────────────
 const CAMERA_DEFAULT: [number, number, number] = [0, 16, 12];
+const CAMERA_DEFAULT_FLIPPED: [number, number, number] = [0, 16, -12];
 const CAMERA_TOP: [number, number, number] = [0, 22, 0.01];
 
-function CameraController({ goTop, orbitRef }: { goTop: boolean; orbitRef: React.MutableRefObject<any> }) {
+function CameraController({ goTop, flipped, orbitRef }: { goTop: boolean; flipped: boolean; orbitRef: React.MutableRefObject<any> }) {
   const { camera } = useThree();
   const target = useRef<THREE.Vector3 | null>(null);
 
   useEffect(() => {
-    target.current = new THREE.Vector3(...(goTop ? CAMERA_TOP : CAMERA_DEFAULT));
-  }, [goTop]);
+    const dest = goTop ? CAMERA_TOP : flipped ? CAMERA_DEFAULT_FLIPPED : CAMERA_DEFAULT;
+    target.current = new THREE.Vector3(...dest);
+  }, [goTop, flipped]);
 
   useFrame(() => {
     if (!target.current) return;
@@ -176,8 +178,6 @@ export default function GameScene() {
   // Online
   const [onlineRoomId, setOnlineRoomId] = useState<string | null>(null);
 
-  // Camera: go top-down during placement
-  const cameraGoTop = gameState.phase === 'placement' && gameMode !== null;
   const orbitRef = useRef<any>(null);
 
   const [cameraProps] = useState(() => {
@@ -198,6 +198,9 @@ export default function GameScene() {
   // Active game state
   const activeGameState: GameState = gameMode === 'online' ? partyGame.gameState : gameState;
   const activeLastTo = gameMode === 'online' ? partyGame.lastTo : lastTo;
+
+  // Camera: go top-down during placement (use activeGameState so online mode unlocks after placement)
+  const cameraGoTop = activeGameState.phase === 'placement' && gameMode !== null;
 
   // Valid moves (computed from active state for rendering)
   const validMoves: [number, number][] = (() => {
@@ -514,7 +517,7 @@ export default function GameScene() {
         
 
         <MobileTapHandler onCellClick={handleCellClick} />
-        <CameraController goTop={cameraGoTop} orbitRef={orbitRef} />
+        <CameraController goTop={cameraGoTop} flipped={gameMode === 'online' && partyGame.myColor === 'black'} orbitRef={orbitRef} />
 
         <Suspense fallback={null}>
           <Board
