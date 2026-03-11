@@ -46,8 +46,8 @@ export const ROWS = 11;
 export const COLS = 11;
 export const MINE_COUNT = 15;
 
-export const WHITE_START: [number, number] = [0, 0];
-export const BLACK_START: [number, number] = [10, 10];
+export const WHITE_START: [number, number] = [10, 0];
+export const BLACK_START: [number, number] = [0, 10];
 
 // Treasure positions — order determines base value assignment
 export const TREASURE_POSITIONS: [number, number][] = [
