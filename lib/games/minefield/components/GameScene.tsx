@@ -235,7 +235,8 @@ export default function GameScene() {
     const roomId = new URLSearchParams(window.location.search).get('r');
     if (roomId) { setOnlineRoomId(roomId); setGameMode('online'); return; }
     // Restore local session from sessionStorage
-    const saved = sessionStorage.getItem('mo_session');
+    const MO_SESSION_V = 'mo_session_v2';
+    const saved = sessionStorage.getItem(MO_SESSION_V);
     if (saved) {
       try {
         const { gameMode: gm, difficulty: d, gameState: gs, localMines: lm, placementTurn: pt } = JSON.parse(saved);
@@ -251,7 +252,7 @@ export default function GameScene() {
   // ── Persist local session to sessionStorage ────────────────────────────────
   useEffect(() => {
     if (gameMode === null || gameMode === 'online') return;
-    sessionStorage.setItem('mo_session', JSON.stringify({ gameMode, difficulty, gameState, localMines, placementTurn }));
+    sessionStorage.setItem('mo_session_v2', JSON.stringify({ gameMode, difficulty, gameState, localMines, placementTurn }));
   }, [gameMode, difficulty, gameState, localMines, placementTurn]);
 
   // ── Online game start sound ───────────────────────────────────────────────
