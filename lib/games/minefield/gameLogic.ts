@@ -58,7 +58,7 @@ export const TREASURE_POSITIONS: [number, number][] = [
 ];
 
 // Points awarded in order of collection (1st, 2nd, 3rd)
-export const TREASURE_VALUES = [10, 15, 20];
+export const TREASURE_VALUES = [10, 20, 30];
 
 const DIRS_8: [number, number][] = [
   [-1, -1], [-1, 0], [-1, 1],
