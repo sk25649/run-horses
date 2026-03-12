@@ -32,6 +32,7 @@ import HUD from './HUD';
 import { useMinesPartyGame } from '@/lib/games/minefield/useMinesPartyGame';
 import { track } from '@vercel/analytics';
 import { usePoki } from '@/lib/poki/usePoki';
+import { safeStorage } from '@/lib/poki/safeStorage';
 
 // ─── Mobile tap handler ───────────────────────────────────────────────────────
 const TILE_GAP = 1.05;
@@ -233,10 +234,10 @@ export default function GameScene() {
   };
 
   useEffect(() => {
-    const m = localStorage.getItem('mo_muted') === '1';
+    const m = safeStorage.getItem('mo_muted') === '1';
     setMutedState(m); setMuted(m);
   }, []);
-  useEffect(() => { localStorage.setItem('mo_muted', muted ? '1' : '0'); }, [muted]);
+  useEffect(() => { safeStorage.setItem('mo_muted', muted ? '1' : '0'); }, [muted]);
 
   // ── URL room ID on mount / local session restore ──────────────────────────
   useEffect(() => {
@@ -272,6 +273,18 @@ export default function GameScene() {
       playGameStart();
     }
   }, [gameMode, partyGame.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Disable keyboard scrolling during ad breaks ──────────────────────────
+  useEffect(() => {
+    if (!adBreakActive) return;
+    const block = (e: KeyboardEvent) => {
+      if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', block);
+    return () => window.removeEventListener('keydown', block);
+  }, [adBreakActive]);
 
   // ── Commercial break on game over ────────────────────────────────────────
   useEffect(() => {

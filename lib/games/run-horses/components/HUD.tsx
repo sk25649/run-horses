@@ -14,6 +14,8 @@ import type { OnlineStatus, OnlinePlayer } from "@/lib/multiplayer/types";
 import { track } from "@vercel/analytics";
 import { CSSProperties, useState, useEffect, useRef } from "react";
 import type { MoveRecord } from "@/lib/games/run-horses/components/GameScene";
+import { safeStorage } from "@/lib/poki/safeStorage";
+import { containsProfanity } from "@/lib/poki/profanity";
 
 // ─── Confetti ─────────────────────────────────────────────────────────────────
 function Confetti() {
@@ -246,21 +248,22 @@ export default function HUD({
 
   // ── Player name (persisted) ───────────────────────────────────────────────
   const [playerName, setPlayerName] = useState('');
+  const [profanityError, setProfanityError] = useState(false);
   useEffect(() => {
-    setPlayerName(localStorage.getItem('rh_name') || '');
+    setPlayerName(safeStorage.getItem('rh_name') || '');
   }, []);
 
   // ── How to play modal ─────────────────────────────────────────────────────
   const [showRulesModal, setShowRulesModal] = useState(false);
   const rulesShownRef = useRef(false);
   useEffect(() => {
-    if (gameMode !== null && !rulesShownRef.current && localStorage.getItem('rh_hide_rules') !== '1') {
+    if (gameMode !== null && !rulesShownRef.current && safeStorage.getItem('rh_hide_rules') !== '1') {
       rulesShownRef.current = true;
       setShowRulesModal(true);
     }
   }, [gameMode]);
   const dismissRules = (never: boolean) => {
-    if (never) localStorage.setItem('rh_hide_rules', '1');
+    if (never) safeStorage.setItem('rh_hide_rules', '1');
     setShowRulesModal(false);
   };
 
@@ -294,7 +297,7 @@ export default function HUD({
       // For win shares, create a server-issued challenge token
       if (isWin) {
         const name = playerName.trim() || 'Anonymous';
-        localStorage.setItem('rh_name', name);
+        safeStorage.setItem('rh_name', name);
         try {
           const res = await fetch('/api/challenge', {
             method: 'POST',
@@ -944,12 +947,14 @@ export default function HUD({
           }}
         >
           {/* Back to portal */}
-          <button onClick={() => { sessionStorage.removeItem('rh_session'); window.location.href = '/'; }} style={{
-            display: "inline-block", marginBottom: 20,
-            color: "#aaaacc", fontSize: 10, letterSpacing: 3, textDecoration: "none",
-            border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, padding: "6px 14px",
-            background: "rgba(255,255,255,0.05)", cursor: "pointer", fontFamily: "inherit",
-          }}>← ALL GAMES</button>
+          {!process.env.NEXT_PUBLIC_POKI && (
+            <button onClick={() => { sessionStorage.removeItem('rh_session'); window.location.href = '/'; }} style={{
+              display: "inline-block", marginBottom: 20,
+              color: "#aaaacc", fontSize: 10, letterSpacing: 3, textDecoration: "none",
+              border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, padding: "6px 14px",
+              background: "rgba(255,255,255,0.05)", cursor: "pointer", fontFamily: "inherit",
+            }}>← ALL GAMES</button>
+          )}
 
           {/* Logo */}
           <div style={{ marginBottom: 4, textAlign: "center" }}>
@@ -1439,7 +1444,9 @@ export default function HUD({
             onSubmit={(e) => {
               e.preventDefault();
               const name = playerName.trim() || "Anonymous";
-              localStorage.setItem("rh_name", name);
+              if (containsProfanity(name)) { setProfanityError(true); return; }
+              setProfanityError(false);
+              safeStorage.setItem("rh_name", name);
               onSubmitName(name);
             }}
             style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}
@@ -1447,7 +1454,7 @@ export default function HUD({
             <input
               autoFocus
               value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
+              onChange={(e) => { setPlayerName(e.target.value); setProfanityError(false); }}
               placeholder="Anonymous"
               maxLength={20}
               style={{
@@ -1465,9 +1472,14 @@ export default function HUD({
                 width: isMobile ? "75vw" : 280,
               }}
             />
+            {profanityError && (
+              <div style={{ color: "#ff4466", fontSize: 10, letterSpacing: 2 }}>INAPPROPRIATE NAME — PLEASE CHOOSE ANOTHER</div>
+            )}
             <GhostButton onClick={() => {
               const name = playerName.trim() || "Anonymous";
-              localStorage.setItem("rh_name", name);
+              if (containsProfanity(name)) { setProfanityError(true); return; }
+              setProfanityError(false);
+              safeStorage.setItem("rh_name", name);
               onSubmitName(name);
             }} color="#00ffcc">
               JOIN

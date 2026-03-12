@@ -27,6 +27,7 @@ import HUD from '@/lib/games/run-horses/components/HUD';
 import { usePartyGame } from '@/lib/multiplayer/usePartyGame';
 import type { LastMove } from '@/lib/multiplayer/types';
 import { usePoki } from '@/lib/poki/usePoki';
+import { safeStorage } from '@/lib/poki/safeStorage';
 
 // ─── Mobile tap handler ───────────────────────────────────────────────────────
 const TILE_GAP = 1.05;
@@ -296,18 +297,18 @@ export default function GameScene() {
 
   // Load streak + mute from localStorage on mount
   useEffect(() => {
-    const s = parseInt(localStorage.getItem('rh_streak') || '0');
-    const b = parseInt(localStorage.getItem('rh_best') || '0');
+    const s = parseInt(safeStorage.getItem('rh_streak') || '0');
+    const b = parseInt(safeStorage.getItem('rh_best') || '0');
     setStreak(s);
     setBestStreak(b);
-    const m = localStorage.getItem('rh_muted') === '1';
+    const m = safeStorage.getItem('rh_muted') === '1';
     setMutedState(m);
     setMuted(m);
   }, []);
 
   // Persist mute preference
   useEffect(() => {
-    localStorage.setItem('rh_muted', muted ? '1' : '0');
+    safeStorage.setItem('rh_muted', muted ? '1' : '0');
   }, [muted]);
 
   const [cameraProps] = useState(() => {
@@ -317,6 +318,18 @@ export default function GameScene() {
       fov: mobile ? 54 : 42,
     };
   });
+
+  // ── Disable keyboard scrolling during ad breaks ───────────────────────────────
+  useEffect(() => {
+    if (!adBreakActive) return;
+    const block = (e: KeyboardEvent) => {
+      if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', block);
+    return () => window.removeEventListener('keydown', block);
+  }, [adBreakActive]);
 
   // ── Commercial break on game over ────────────────────────────────────────────
   useEffect(() => {
@@ -350,11 +363,11 @@ export default function GameScene() {
           const best = Math.max(next, bestStreak);
           setStreak(next);
           setBestStreak(best);
-          localStorage.setItem('rh_streak', String(next));
-          localStorage.setItem('rh_best', String(best));
+          safeStorage.setItem('rh_streak', String(next));
+          safeStorage.setItem('rh_best', String(best));
         } else {
           setStreak(0);
-          localStorage.setItem('rh_streak', '0');
+          safeStorage.setItem('rh_streak', '0');
         }
       }
     }, 1400);

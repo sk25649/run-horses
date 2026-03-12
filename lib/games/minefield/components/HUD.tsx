@@ -2,6 +2,8 @@
 
 import { CSSProperties, useState, useEffect, useRef } from "react";
 import { track } from "@vercel/analytics";
+import { safeStorage } from "@/lib/poki/safeStorage";
+import { containsProfanity } from "@/lib/poki/profanity";
 import type { OnlineStatus, OnlinePlayer } from "@/lib/multiplayer/types";
 import {
   GameState,
@@ -223,18 +225,19 @@ export default function HUD({
   }, []);
 
   const [playerName, setPlayerName] = useState('');
-  useEffect(() => { setPlayerName(localStorage.getItem('mo_name') || ''); }, []);
+  const [profanityError, setProfanityError] = useState(false);
+  useEffect(() => { setPlayerName(safeStorage.getItem('mo_name') || ''); }, []);
 
   const [showRulesModal, setShowRulesModal] = useState(false);
   const rulesShownRef = useRef(false);
   useEffect(() => {
-    if (gameMode !== null && !rulesShownRef.current && localStorage.getItem('mo_hide_rules') !== '1') {
+    if (gameMode !== null && !rulesShownRef.current && safeStorage.getItem('mo_hide_rules') !== '1') {
       rulesShownRef.current = true;
       setShowRulesModal(true);
     }
   }, [gameMode]);
   const dismissRules = (never: boolean) => {
-    if (never) localStorage.setItem('mo_hide_rules', '1');
+    if (never) safeStorage.setItem('mo_hide_rules', '1');
     setShowRulesModal(false);
   };
 
@@ -633,12 +636,14 @@ export default function HUD({
           background: "rgba(4,4,14,0.78)", backdropFilter: "blur(6px)",
           zIndex: 60, overflowY: "auto", padding: "24px 16px",
         }}>
-          <button onClick={() => { sessionStorage.removeItem('mo_session'); sessionStorage.removeItem('mo_session_v2'); window.location.href = '/'; }} style={{
-            display: "inline-block", marginBottom: 20,
-            color: "#aaaacc", fontSize: 10, letterSpacing: 3, textDecoration: "none",
-            border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, padding: "6px 14px",
-            background: "rgba(255,255,255,0.05)", cursor: "pointer", fontFamily: "inherit",
-          }}>← ALL GAMES</button>
+          {!process.env.NEXT_PUBLIC_POKI && (
+            <button onClick={() => { sessionStorage.removeItem('mo_session'); sessionStorage.removeItem('mo_session_v2'); window.location.href = '/'; }} style={{
+              display: "inline-block", marginBottom: 20,
+              color: "#aaaacc", fontSize: 10, letterSpacing: 3, textDecoration: "none",
+              border: "1px solid rgba(255,255,255,0.3)", borderRadius: 5, padding: "6px 14px",
+              background: "rgba(255,255,255,0.05)", cursor: "pointer", fontFamily: "inherit",
+            }}>← ALL GAMES</button>
+          )}
 
           <div style={{ marginBottom: 4, textAlign: "center" }}>
             <div style={{ fontSize: isMobile ? 24 : 38, fontWeight: 900, color: "#ffffff", letterSpacing: isMobile ? 2 : 4 }}>
@@ -841,13 +846,16 @@ export default function HUD({
         }}>
           <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, color: "#ffffff", letterSpacing: 3, marginBottom: 8, textAlign: "center" }}>ENTER YOUR NAME</div>
           <div style={{ color: "#555577", fontSize: 11, letterSpacing: 3, marginBottom: 28, textAlign: "center" }}>SO YOUR OPPONENT KNOWS WHO THEY FACE</div>
-          <form onSubmit={e => { e.preventDefault(); const n = playerName.trim() || "Anonymous"; localStorage.setItem("mo_name", n); onSubmitName(n); }}
+          <form onSubmit={e => { e.preventDefault(); const n = playerName.trim() || "Anonymous"; if (containsProfanity(n)) { setProfanityError(true); return; } setProfanityError(false); safeStorage.setItem("mo_name", n); onSubmitName(n); }}
             style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-            <input autoFocus value={playerName} onChange={e => setPlayerName(e.target.value)}
+            <input autoFocus value={playerName} onChange={e => { setPlayerName(e.target.value); setProfanityError(false); }}
               placeholder="Anonymous" maxLength={20}
               style={{ background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,68,68,0.4)", borderRadius: 8, color: "#ffffff", fontFamily: "inherit", fontSize: isMobile ? 16 : 20, fontWeight: 700, letterSpacing: 3, padding: "12px 24px", textAlign: "center", outline: "none", width: isMobile ? "75vw" : 280 }}
             />
-            <GhostButton onClick={() => { const n = playerName.trim() || "Anonymous"; localStorage.setItem("mo_name", n); onSubmitName(n); }} color="#ff4444">JOIN</GhostButton>
+            {profanityError && (
+              <div style={{ color: "#ff4466", fontSize: 10, letterSpacing: 2 }}>INAPPROPRIATE NAME — PLEASE CHOOSE ANOTHER</div>
+            )}
+            <GhostButton onClick={() => { const n = playerName.trim() || "Anonymous"; if (containsProfanity(n)) { setProfanityError(true); return; } setProfanityError(false); safeStorage.setItem("mo_name", n); onSubmitName(n); }} color="#ff4444">JOIN</GhostButton>
             <button type="button" onClick={onChangeMode} style={{ background: "transparent", border: "none", color: "#444466", cursor: "pointer", fontFamily: "inherit", fontSize: 10, letterSpacing: 2, marginTop: 4 }}>CANCEL</button>
           </form>
         </div>
