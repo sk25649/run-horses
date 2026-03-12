@@ -19,6 +19,7 @@ import {
 } from '@/lib/games/run-horses/gameLogic';
 import { track } from '@vercel/analytics';
 import { playSelect, playMove, playLand, playWin, playGameStart, setMuted } from '@/lib/games/run-horses/sounds';
+import { suspendAudio, resumeAudio } from '@/lib/audio/engine';
 import { gridToWorld } from '@/lib/games/run-horses/components/Board';
 import Board from '@/lib/games/run-horses/components/Board';
 import Pieces from '@/lib/games/run-horses/components/Pieces';
@@ -321,7 +322,7 @@ export default function GameScene() {
   useEffect(() => {
     if (!displayWinner) { setAdBreakActive(false); return; }
     setAdBreakActive(true);
-    poki.commercialBreak().then(() => setAdBreakActive(false));
+    poki.commercialBreak(suspendAudio).then(() => { resumeAudio(); setAdBreakActive(false); });
   }, [displayWinner]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Poki gameplay lifecycle ───────────────────────────────────────────────────

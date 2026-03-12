@@ -6,6 +6,14 @@ let _muted = false;
 export function setMuted(v: boolean) { _muted = v; }
 export function isMuted() { return _muted; }
 
+export function suspendAudio() {
+  if (_ctx && _ctx.state === 'running') _ctx.suspend();
+}
+
+export function resumeAudio() {
+  if (_ctx && _ctx.state === 'suspended') _ctx.resume();
+}
+
 export function ctx(): AudioContext | null {
   if (typeof window === 'undefined') return null;
   try {

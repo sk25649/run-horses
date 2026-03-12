@@ -24,6 +24,7 @@ import {
   playPlaceMine, playRemoveMine, playStep, playSafe, playExplosion,
   playTreasure, playTeleport, playGameStart, playWin, playLose, setMuted,
 } from '@/lib/games/minefield/sounds';
+import { suspendAudio, resumeAudio } from '@/lib/audio/engine';
 import { gridToWorld } from './Board';
 import Board from './Board';
 import Pieces from './Pieces';
@@ -276,7 +277,7 @@ export default function GameScene() {
   useEffect(() => {
     if (!displayWinner) { setAdBreakActive(false); return; }
     setAdBreakActive(true);
-    poki.commercialBreak().then(() => setAdBreakActive(false));
+    poki.commercialBreak(suspendAudio).then(() => { resumeAudio(); setAdBreakActive(false); });
   }, [displayWinner]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Poki gameplay lifecycle ───────────────────────────────────────────────
