@@ -212,6 +212,7 @@ export default function GameScene() {
   const [aiThinking, setAiThinking] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [displayWinner, setDisplayWinner] = useState<Player | null>(null);
+  const [adBreakActive, setAdBreakActive] = useState(false);
   const [streak, setStreak]         = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
 
@@ -315,6 +316,13 @@ export default function GameScene() {
       fov: mobile ? 54 : 42,
     };
   });
+
+  // ── Commercial break on game over ────────────────────────────────────────────
+  useEffect(() => {
+    if (!displayWinner) { setAdBreakActive(false); return; }
+    setAdBreakActive(true);
+    poki.commercialBreak().then(() => setAdBreakActive(false));
+  }, [displayWinner]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Poki gameplay lifecycle ───────────────────────────────────────────────────
   // Online: start on 'playing' status, restart after rematch (winner cleared)
@@ -607,6 +615,7 @@ export default function GameScene() {
         aiThinking={aiThinking}
         difficulty={difficulty}
         winner={displayWinner}
+        adBreakActive={adBreakActive}
         streak={streak}
         bestStreak={bestStreak}
         onReset={handleReset}

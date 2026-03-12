@@ -172,6 +172,7 @@ interface HUDProps {
   gameMode: GameMode | null;
   difficulty: Difficulty;
   winner: Player | 'draw' | null;
+  adBreakActive?: boolean;
   aiThinking: boolean;
   // Placement
   phase: 'placement' | 'moving' | 'finished';
@@ -204,7 +205,7 @@ interface HUDProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function HUD({
-  gameState, gameMode, difficulty, winner, aiThinking,
+  gameState, gameMode, difficulty, winner, adBreakActive = false, aiThinking,
   phase, placingMines, placementTurn, showPassScreen,
   onToggleMine, onConfirmPlacement, onRandomPlacement, onPassReady,
   onReset, onChangeMode, onSelectMode,
@@ -797,16 +798,22 @@ export default function HUD({
             );
           })()}
 
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-            {gameMode === "online" ? (
-              <GhostButton onClick={onSendRematch} color="#f5c842">
-                {opponentWantsRematch ? "ACCEPT REMATCH" : "REMATCH"}
-              </GhostButton>
-            ) : (
-              <GhostButton onClick={onReset}>PLAY AGAIN</GhostButton>
-            )}
-            <GhostButton onClick={onChangeMode} color="#555577" small>CHANGE MODE</GhostButton>
-          </div>
+          {adBreakActive ? (
+            <div style={{ color: "#555577", fontSize: 11, letterSpacing: 3, textAlign: "center", padding: "14px 0" }}>
+              LOADING...
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+              {gameMode === "online" ? (
+                <GhostButton onClick={onSendRematch} color="#f5c842">
+                  {opponentWantsRematch ? "ACCEPT REMATCH" : "REMATCH"}
+                </GhostButton>
+              ) : (
+                <GhostButton onClick={onReset}>PLAY AGAIN</GhostButton>
+              )}
+              <GhostButton onClick={onChangeMode} color="#555577" small>CHANGE MODE</GhostButton>
+            </div>
+          )}
         </div>
       )}
 

@@ -157,6 +157,7 @@ interface HUDProps {
   aiThinking: boolean;
   difficulty: Difficulty;
   winner: Player | null;
+  adBreakActive?: boolean;
   streak: number;
   bestStreak: number;
   onReset: () => void;
@@ -186,6 +187,7 @@ export default function HUD({
   aiThinking,
   difficulty,
   winner,
+  adBreakActive = false,
   streak,
   bestStreak,
   onReset,
@@ -1373,25 +1375,31 @@ export default function HUD({
           )}
 
           {/* ── Buttons ──────────────────────────────────────────────────── */}
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-            {gameMode === "online" ? (
-              <GhostButton onClick={onSendRematch} color="#f5c842">
-                {opponentWantsRematch ? "ACCEPT REMATCH" : "REMATCH"}
+          {adBreakActive ? (
+            <div style={{ color: "#555577", fontSize: 11, letterSpacing: 3, textAlign: "center", padding: "14px 0" }}>
+              LOADING...
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+              {gameMode === "online" ? (
+                <GhostButton onClick={onSendRematch} color="#f5c842">
+                  {opponentWantsRematch ? "ACCEPT REMATCH" : "REMATCH"}
+                </GhostButton>
+              ) : (
+                <GhostButton onClick={onReset}>
+                  {winner === "white" ? "PLAY AGAIN" : "TRY AGAIN"}
+                </GhostButton>
+              )}
+              {winner === "white" && gameMode !== "online" && (
+                <GhostButton onClick={() => handleShare('win')} color="#aa44ff" small>
+                  {sharing ? "..." : copied ? "COPIED!" : challengeData ? `COUNTER-CHALLENGE ${challengeData.name.toUpperCase()}` : "CHALLENGE FRIENDS"}
+                </GhostButton>
+              )}
+              <GhostButton onClick={onChangeMode} color="#555577" small>
+                CHANGE MODE
               </GhostButton>
-            ) : (
-              <GhostButton onClick={onReset}>
-                {winner === "white" ? "PLAY AGAIN" : "TRY AGAIN"}
-              </GhostButton>
-            )}
-            {winner === "white" && gameMode !== "online" && (
-              <GhostButton onClick={() => handleShare('win')} color="#aa44ff" small>
-                {sharing ? "..." : copied ? "COPIED!" : challengeData ? `COUNTER-CHALLENGE ${challengeData.name.toUpperCase()}` : "CHALLENGE FRIENDS"}
-              </GhostButton>
-            )}
-            <GhostButton onClick={onChangeMode} color="#555577" small>
-              CHANGE MODE
-            </GhostButton>
-          </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -159,6 +159,7 @@ export default function GameScene() {
   const [gameState, setGameState] = useState<GameState>(createInitialState);
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [displayWinner, setDisplayWinner] = useState<Player | 'draw' | null>(null);
+  const [adBreakActive, setAdBreakActive] = useState(false);
   const [aiThinking, setAiThinking] = useState(false);
   const [muted, setMutedState] = useState(false);
 
@@ -270,6 +271,13 @@ export default function GameScene() {
       playGameStart();
     }
   }, [gameMode, partyGame.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Commercial break on game over ────────────────────────────────────────
+  useEffect(() => {
+    if (!displayWinner) { setAdBreakActive(false); return; }
+    setAdBreakActive(true);
+    poki.commercialBreak().then(() => setAdBreakActive(false));
+  }, [displayWinner]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Poki gameplay lifecycle ───────────────────────────────────────────────
   // Start when moving phase begins; also handles rematch (placement → moving again)
@@ -572,6 +580,7 @@ export default function GameScene() {
         gameMode={gameMode}
         difficulty={difficulty}
         winner={displayWinner}
+        adBreakActive={adBreakActive}
         aiThinking={aiThinking}
         phase={activeGameState.phase}
         placingMines={placingMines}
