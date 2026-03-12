@@ -1,0 +1,12 @@
+{
+  "games": {
+    "run-horses": {
+      "buildDir": "out-poki",
+      "description": "Run Horses — Race to the center of the board"
+    },
+    "minefield": {
+      "buildDir": "out-poki",
+      "description": "Mines of Oblivion — Score the most treasures"
+    }
+  }
+}

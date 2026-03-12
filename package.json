@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "build:poki:run-horses": "bash scripts/build-poki.sh run-horses",
-    "build:poki:minefield": "bash scripts/build-poki.sh minefield"
+    "build:poki:minefield": "bash scripts/build-poki.sh minefield",
+    "poki:upload:run-horses": "npm run build:poki:run-horses && poki upload",
+    "poki:upload:minefield": "npm run build:poki:minefield && poki upload"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -27,6 +29,7 @@
     "three": "^0.183.2"
   },
   "devDependencies": {
+    "@poki/cli": "^0.1.18",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
