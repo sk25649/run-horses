@@ -353,7 +353,7 @@ describe('applyMove (minefield)', () => {
       expect(next.scores.white).toBe(10);
     });
 
-    it('awards escalating value for 2nd treasure (15 pts)', () => {
+    it('awards escalating value for 2nd treasure (20 pts)', () => {
       // Pre-collect first treasure then collect second
       let state = movingState({
         positions: { white: [4, 5], black: BLACK_START },
@@ -362,7 +362,7 @@ describe('applyMove (minefield)', () => {
       const s3 = { ...s2, currentTurn: 'white' as const, positions: { ...s2.positions, white: [1, 0] } };
       const { result } = applyMove(s3, 'white', 0, 0, [], []); // 2nd treasure at [0,0]
       expect(result.type).toBe('treasure');
-      expect((result as { type: 'treasure'; value: number }).value).toBe(15);
+      expect((result as { type: 'treasure'; value: number }).value).toBe(20);
     });
 
     it('marks treasure as collected', () => {

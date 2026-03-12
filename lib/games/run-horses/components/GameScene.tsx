@@ -25,6 +25,7 @@ import Pieces from '@/lib/games/run-horses/components/Pieces';
 import HUD from '@/lib/games/run-horses/components/HUD';
 import { usePartyGame } from '@/lib/multiplayer/usePartyGame';
 import type { LastMove } from '@/lib/multiplayer/types';
+import { usePoki } from '@/lib/poki/usePoki';
 
 // ─── Mobile tap handler ───────────────────────────────────────────────────────
 const TILE_GAP = 1.05;
@@ -240,6 +241,8 @@ export default function GameScene() {
     validMoves: [number, number][];
   }>({ selectedCell: null, validMoves: [] });
 
+  const poki = usePoki();
+
   // Always call hook — pass null when not in online mode (hook becomes a no-op)
   const partyGame = usePartyGame<GameState>(gameMode === 'online' ? onlineRoomId : null, {
     party: 'runhorses',
@@ -313,10 +316,20 @@ export default function GameScene() {
     };
   });
 
+  // ── Poki gameplay lifecycle ───────────────────────────────────────────────────
+  // Online: start on 'playing' status, restart after rematch (winner cleared)
+  useEffect(() => {
+    if (gameMode !== 'online') return;
+    if (partyGame.status === 'playing' && !partyGame.gameState.winner) {
+      poki.gameplayStart();
+    }
+  }, [gameMode, partyGame.status, partyGame.gameState.winner]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Win detection — local modes ───────────────────────────────────────────────
   useEffect(() => {
     if (gameMode === 'online') return;
     if (!gameState.winner) { setDisplayWinner(null); return; }
+    poki.gameplayStop();
     const id = window.setTimeout(() => {
       setDisplayWinner(gameState.winner);
       playWin();
@@ -351,6 +364,7 @@ export default function GameScene() {
     if (gameMode !== 'online') return;
     const winner = partyGame.gameState.winner;
     if (!winner) { setDisplayWinner(null); return; }
+    poki.gameplayStop();
     const id = window.setTimeout(() => {
       setDisplayWinner(winner);
       playWin();
@@ -485,9 +499,11 @@ export default function GameScene() {
     setLastMove(null);
     setMoveHistory([]);
     setGameState(createInitialState());
+    poki.gameplayStart();
   };
 
   const handleChangeMode = () => {
+    poki.gameplayStop();
     sessionStorage.removeItem('rh_session');
     setAiThinking(false);
     setGameState(createInitialState());
@@ -519,6 +535,7 @@ export default function GameScene() {
     setDisplayWinner(null);
     setLastMove(null);
     setMoveHistory([]);
+    poki.gameplayStart();
     track('game_started', { mode, difficulty: mode === 'ai' ? d : 'pvp' });
   };
 

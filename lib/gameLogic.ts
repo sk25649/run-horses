@@ -98,8 +98,8 @@ export function getValidMoves(state: GameState, row: number, col: number): [numb
   const moves: [number, number][] = [];
   const terrain = getTerrain(row, col);
 
-  // ── L-Jump: destination must be Desert (source can be any tile) ──────────
-  {
+  // ── L-Jump: source must be Desert, destination must be Desert ────────────
+  if (canLJump(row, col)) {
     const offsets = [[-2,-1],[-2,1],[2,-1],[2,1],[-1,-2],[-1,2],[1,-2],[1,2]];
     for (const [dr, dc] of offsets) {
       const nr = row + dr, nc = col + dc;
@@ -130,9 +130,9 @@ export function getValidMoves(state: GameState, row: number, col: number): [numb
   return moves;
 }
 
-// Any piece can L-jump as long as there's a desert destination — always true for non-oasis tiles
+// Pieces can only L-jump from desert cells — not from garden or oasis
 export function canLJump(row: number, col: number): boolean {
-  return getTerrain(row, col) !== 'oasis';
+  return getTerrain(row, col) === 'desert';
 }
 
 // ─── State transitions ────────────────────────────────────────────────────────

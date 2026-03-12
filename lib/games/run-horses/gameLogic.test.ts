@@ -52,10 +52,14 @@ describe('canLJump', () => {
     expect(canLJump(5, 5)).toBe(false);
   });
 
-  it('returns true for any non-oasis tile', () => {
-    expect(canLJump(0, 0)).toBe(true);
-    expect(canLJump(3, 5)).toBe(true); // garden
-    expect(canLJump(10, 10)).toBe(true);
+  it('returns true for desert tiles only', () => {
+    expect(canLJump(0, 0)).toBe(true);   // desert
+    expect(canLJump(10, 10)).toBe(true);  // desert
+  });
+
+  it('returns false for garden cells', () => {
+    expect(canLJump(3, 5)).toBe(false);  // garden
+    expect(canLJump(4, 4)).toBe(false);  // garden
   });
 });
 

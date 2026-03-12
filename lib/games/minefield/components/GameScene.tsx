@@ -30,6 +30,7 @@ import Pieces from './Pieces';
 import HUD from './HUD';
 import { useMinesPartyGame } from '@/lib/games/minefield/useMinesPartyGame';
 import { track } from '@vercel/analytics';
+import { usePoki } from '@/lib/poki/usePoki';
 
 // ─── Mobile tap handler ───────────────────────────────────────────────────────
 const TILE_GAP = 1.05;
@@ -188,6 +189,8 @@ export default function GameScene() {
     };
   });
 
+  const poki = usePoki();
+
   // Online hook
   const partyGame = useMinesPartyGame(
     gameMode === 'online' ? onlineRoomId : null,
@@ -268,10 +271,22 @@ export default function GameScene() {
     }
   }, [gameMode, partyGame.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Poki gameplay lifecycle ───────────────────────────────────────────────
+  // Start when moving phase begins; also handles rematch (placement → moving again)
+  const prevPhaseRef = useRef<string | null>(null);
+  useEffect(() => {
+    const phase = activeGameState.phase;
+    if (phase === 'moving' && prevPhaseRef.current === 'placement') {
+      poki.gameplayStart();
+    }
+    prevPhaseRef.current = phase;
+  }, [activeGameState.phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Win detection ─────────────────────────────────────────────────────────
   const winnerRaw = gameMode === 'online' ? partyGame.gameState.winner : gameState.winner;
   useEffect(() => {
     if (!winnerRaw) { setDisplayWinner(null); return; }
+    poki.gameplayStop();
     const id = window.setTimeout(() => {
       setDisplayWinner(winnerRaw);
       const localWon = gameMode === 'online' ? winnerRaw === partyGame.myColor : winnerRaw === 'white';
@@ -450,6 +465,7 @@ export default function GameScene() {
 
   // ── Change mode ───────────────────────────────────────────────────────────
   const handleChangeMode = () => {
+    poki.gameplayStop();
     sessionStorage.removeItem('mo_session_v2');
     setGameMode(null);
     setGameState(createInitialState());

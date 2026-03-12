@@ -20,10 +20,11 @@ export default class MinefieldServer extends BaseGameServer {
   getGameState(): GameState { return this._state; }
 
   setGameState(state: unknown): void {
+    const prevHints = this._state.hints;
     this._state = state as GameState;
-    // On rematch (reset to initial placement phase), clear stored mines
-    const s = this._state;
-    if (s.phase === 'placement' && !s.whitePlaced && !s.blackPlaced) {
+    // On game start / rematch (reset to initial placement phase), clear stored mines
+    if (this._state.phase === 'placement' && !this._state.whitePlaced && !this._state.blackPlaced) {
+      this._state = { ...this._state, hints: prevHints }; // preserve host's hints preference
       this._whiteMines = [];
       this._blackMines = [];
     }
