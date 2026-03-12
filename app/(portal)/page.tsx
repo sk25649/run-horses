@@ -1,5 +1,7 @@
 import { games } from '@/lib/game-core/registry';
 import type { Metadata } from 'next';
+import RunHorsesClientScene from '@/lib/games/run-horses/components/ClientGameScene';
+import MinefieldClientScene from '@/lib/games/minefield/components/ClientGameScene';
 
 export const metadata: Metadata = {
   title: 'Play Episodes — Play iconic games from your favorite shows',
@@ -12,6 +14,12 @@ export const metadata: Metadata = {
 };
 
 export default function PortalPage() {
+  if (process.env.NEXT_PUBLIC_POKI === '1') {
+    const game = process.env.NEXT_PUBLIC_POKI_GAME;
+    if (game === 'run-horses') return <RunHorsesClientScene />;
+    if (game === 'minefield') return <MinefieldClientScene />;
+  }
+
   return (
     <div
       style={{

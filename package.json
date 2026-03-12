@@ -10,7 +10,9 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "build:poki:run-horses": "bash scripts/build-poki.sh run-horses",
+    "build:poki:minefield": "bash scripts/build-poki.sh minefield"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

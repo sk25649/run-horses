@@ -1,16 +1,16 @@
 # Roadmap — Run Horses (Play Episodes)
 
-**Last updated:** 2026-03-13
+**Last updated:** 2026-03-12
 
 ## Progress
 
 ### Feature: Poki SDK Integration — In Progress
 - [x] Chunk 1: Poki SDK loader + React wrapper
-- [ ] Chunk 2: Gameplay lifecycle events (gameplayStart/Stop)
-- [ ] Chunk 3: Commercial break integration
-- [ ] Chunk 4: Audio muting during ads
-- [ ] Chunk 5: Poki compliance cleanup
-- [ ] Chunk 6: Static export build for Poki
+- [x] Chunk 2: Gameplay lifecycle events (gameplayStart/Stop)
+- [x] Chunk 3: Commercial break integration
+- [x] Chunk 4: Audio muting during ads
+- [x] Chunk 5: Poki compliance cleanup
+- [x] Chunk 6: Static export build for Poki
 - [ ] Chunk 7: Poki CLI setup + first upload
 
 ---
@@ -96,10 +96,10 @@
 3. Use the `isGameplayActive` guard in the hook to prevent double-firing
 
 **Acceptance criteria:**
-- [ ] `gameplayStart` and `gameplayStop` alternate correctly — never two starts or two stops in a row
-- [ ] Gameplay lifecycle tracks actual player engagement, not menu/setup time
-- [ ] Online mode: `gameplayStart` fires only after both players are connected and game begins
-- [ ] Minefield: placement phase does NOT trigger `gameplayStart`
+- [x] `gameplayStart` and `gameplayStop` alternate correctly — never two starts or two stops in a row
+- [x] Gameplay lifecycle tracks actual player engagement, not menu/setup time
+- [x] Online mode: `gameplayStart` fires only after both players are connected and game begins
+- [x] Minefield: placement phase does NOT trigger `gameplayStart`
 
 ---
 
@@ -126,11 +126,11 @@
 5. **Do NOT add ads on initial load** — Poki SDK handles pre-roll timing automatically after `init()`
 
 **Acceptance criteria:**
-- [ ] Ad break fires after game over in all modes (PvP, AI, Online)
-- [ ] Buttons are disabled during ad playback — no double-clicks or state corruption
-- [ ] If ad is blocked or doesn't fill, game continues immediately (promise resolves)
-- [ ] No ads during active gameplay or setup phases
-- [ ] Online rematch: ad fires locally on each client independently (not synced — Poki decides per-user)
+- [x] Ad break fires after game over in all modes (PvP, AI, Online)
+- [x] Buttons are disabled during ad playback — no double-clicks or state corruption
+- [x] If ad is blocked or doesn't fill, game continues immediately (promise resolves)
+- [x] No ads during active gameplay or setup phases
+- [x] Online rematch: ad fires locally on each client independently (not synced — Poki decides per-user)
 
 **Key decisions:**
 - Don't gate rematch behind a mandatory ad wait. Show the ad, but if it resolves instantly (no fill), let the player proceed immediately. Poki's system controls frequency — we just provide the opportunity.
@@ -150,10 +150,10 @@
 3. Same pattern for `rewardedBreak()` wrapper (future-proofing)
 
 **Acceptance criteria:**
-- [ ] All game audio silences when a Poki ad plays
-- [ ] Audio resumes after ad completes
-- [ ] If no ad plays (no fill / ad blocker), audio is never interrupted
-- [ ] Audio engine works unchanged on tvgames.dev (non-Poki)
+- [x] All game audio silences when a Poki ad plays
+- [x] Audio resumes after ad completes
+- [x] If no ad plays (no fill / ad blocker), audio is never interrupted
+- [x] Audio engine works unchanged on tvgames.dev (non-Poki)
 
 ---
 
@@ -182,11 +182,11 @@
    - Clean up listeners when ad ends
 
 **Acceptance criteria:**
-- [ ] No `localStorage`/`sessionStorage` calls throw in incognito/private browsing
-- [ ] No outbound links to external sites in the Poki build
-- [ ] Profanity in online name input is rejected with user-friendly message
-- [ ] Keyboard input doesn't scroll the page during ad playback
-- [ ] All compliance changes are gated behind `NEXT_PUBLIC_POKI` — tvgames.dev is unaffected
+- [x] No `localStorage`/`sessionStorage` calls throw in incognito/private browsing
+- [x] No outbound links to external sites in the Poki build
+- [x] Profanity in online name input is rejected with user-friendly message
+- [x] Keyboard input doesn't scroll the page during ad playback
+- [x] All compliance changes are gated behind `NEXT_PUBLIC_POKI` — tvgames.dev is unaffected
 
 ---
 
@@ -213,11 +213,11 @@
    - Test by serving `out/` with a static file server and verifying the game works
 
 **Acceptance criteria:**
-- [ ] `npm run build:poki:run-horses` produces a static `out/` directory with a working game
-- [ ] `npm run build:poki:minefield` produces a separate static build
+- [x] `npm run build:poki:run-horses` produces a static `out-poki/` directory with a working game
+- [x] `npm run build:poki:minefield` produces a separate static build
 - [ ] No external resource fetches (fonts, CDNs, APIs) — everything bundled
 - [ ] Bundle size under 8 MB per game
-- [ ] Existing `npm run build` for tvgames.dev is unchanged
+- [x] Existing `npm run build` for tvgames.dev is unchanged
 
 **Key decisions:**
 - Recommend separate builds per game (not one mega-bundle). Poki lists games individually, and smaller bundles load faster. Each build only includes the code for one game.
