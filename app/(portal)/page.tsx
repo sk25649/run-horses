@@ -1,7 +1,9 @@
 import { games } from '@/lib/game-core/registry';
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import RunHorsesClientScene from '@/lib/games/run-horses/components/ClientGameScene';
 import MinefieldClientScene from '@/lib/games/minefield/components/ClientGameScene';
+import CandyCatchClientScene from '@/lib/games/candy-catch/components/ClientGameScene';
 
 export const metadata: Metadata = {
   title: 'Play Episodes — Play iconic games from your favorite shows',
@@ -18,6 +20,16 @@ export default function PortalPage() {
     const game = process.env.NEXT_PUBLIC_POKI_GAME;
     if (game === 'run-horses') return <RunHorsesClientScene />;
     if (game === 'minefield') return <MinefieldClientScene />;
+    if (game === 'candy-catch') return <CandyCatchClientScene />;
+  }
+
+  if (process.env.NEXT_PUBLIC_CRAZYGAMES === '1') {
+    const game = process.env.NEXT_PUBLIC_CRAZYGAMES_GAME;
+    if (game === 'run-horses') return <RunHorsesClientScene />;
+    if (game === 'minefield') return <MinefieldClientScene />;
+    if (game === 'candy-catch') return <CandyCatchClientScene />;
+    // Fallback: redirect to candy-catch if no game specified
+    redirect('/candy-catch');
   }
 
   return (
