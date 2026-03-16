@@ -1308,9 +1308,9 @@ function ScoreStat({ label, value, color, suffix = '' }: { label: string; value:
       borderRadius: 12,
       padding: '12px 14px',
       flex: 1,
-      minWidth: 70,
+      minWidth: 0,
     }}>
-      <div style={{ color: '#555', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+      <div style={{ color: '#555', fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4, whiteSpace: 'nowrap' }}>{label}</div>
       <div style={{ color, fontSize: 20, fontWeight: 900 }}>{value}{suffix}</div>
     </div>
   );
