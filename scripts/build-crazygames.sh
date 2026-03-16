@@ -60,6 +60,15 @@ cleanup() {
 # Always restore on exit (even if build fails)
 trap cleanup EXIT
 
+# Clean up any leftover nested stash dirs from previous failed builds
+for g in "run-horses" "minefield" "candy-catch"; do
+  nested="$ROOT/app/(games)/$g/games_$g"
+  if [[ -d "$nested" ]]; then
+    echo "→ Cleaning up leftover stash: $nested"
+    rm -rf "$nested"
+  fi
+done
+
 echo "→ Stashing non-$GAME game directories and API routes..."
 mkdir -p "$STASH_DIR"
 
