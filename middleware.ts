@@ -5,6 +5,7 @@ import type { NextRequest } from 'next/server';
 const SUBDOMAIN_ROUTES: Record<string, string> = {
   runhorses: '/run-horses',
   minefield: '/minefield',
+  candycatch: '/candy-catch',
 };
 
 export function middleware(req: NextRequest) {

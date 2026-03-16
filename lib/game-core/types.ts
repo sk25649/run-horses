@@ -9,7 +9,7 @@ export interface GameDefinition {
   emoji: string;
   thumbnail: string;
   maxPlayers: number;
-  modes: ('pvp' | 'ai' | 'online')[];
+  modes: ('pvp' | 'ai' | 'online' | 'solo')[];
   subdomain: string;
   themeColor: string;
   accentColor: string;
