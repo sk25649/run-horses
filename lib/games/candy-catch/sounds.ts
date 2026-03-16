@@ -35,3 +35,20 @@ export function playGameOver() {
   setTimeout(() => playTone(330, 165, 0.5, 0.2), 300);
   setTimeout(() => playTone(220, 110, 0.7, 0.18), 600);
 }
+
+// 🔥 Combo milestone — punchy rising chime
+export function playCombo() {
+  playChime([880, 1100, 1320, 1760], 0.055, 0.22);
+}
+
+// 🍬 Candy rain — exciting fast arpeggio
+export function playCandyRain() {
+  playChime([523, 659, 784, 1047, 1319, 1568], 0.055, 0.24);
+  setTimeout(() => playChime([1047, 1319, 1568, 2093], 0.055, 0.2), 350);
+}
+
+// ⚡ Power-up caught — magical shimmer
+export function playPowerup() {
+  playChime([1047, 1319, 1568, 2093], 0.06, 0.22);
+  setTimeout(() => playTone(2093, 1568, 0.3, 0.12), 280);
+}
