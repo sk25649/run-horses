@@ -17,7 +17,8 @@
     "build:crazygames:run-horses": "bash scripts/build-crazygames.sh run-horses",
     "build:crazygames:minefield": "bash scripts/build-crazygames.sh minefield",
     "poki:upload:run-horses": "npm run build:poki:run-horses && poki upload",
-    "poki:upload:minefield": "npm run build:poki:minefield && poki upload"
+    "poki:upload:minefield": "npm run build:poki:minefield && poki upload",
+    "build:crazygames:all": "bash scripts/build-crazygames-all.sh"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
