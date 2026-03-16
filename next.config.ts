@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   ...(isStaticExport ? {
     output: 'export',
     distDir: isCrazyGames ? 'out-crazygames' : 'out-poki',
+    assetPrefix: './',
+    trailingSlash: true,
   } : {}),
 };
 
