@@ -38,12 +38,20 @@ API_DIRS=(
 )
 
 cleanup() {
-  echo "→ Restoring API directories..."
+  echo "→ Restoring stashed directories..."
   for dir in "${API_DIRS[@]}"; do
     stash_name="${dir//\//_}"
     if [[ -d "$STASH_DIR/$stash_name" ]]; then
       mkdir -p "$ROOT/$(dirname "$dir")"
       mv "$STASH_DIR/$stash_name" "$ROOT/$dir"
+    fi
+  done
+  # Restore other game dirs
+  OTHER_GAMES=("run-horses" "minefield" "candy-catch")
+  for g in "${OTHER_GAMES[@]}"; do
+    stash_name="games_${g}"
+    if [[ -d "$STASH_DIR/$stash_name" ]]; then
+      mv "$STASH_DIR/$stash_name" "$ROOT/app/(games)/$g"
     fi
   done
   rm -rf "$STASH_DIR"
@@ -52,8 +60,10 @@ cleanup() {
 # Always restore on exit (even if build fails)
 trap cleanup EXIT
 
-echo "→ Stashing API directories..."
+echo "→ Stashing non-$GAME game directories and API routes..."
 mkdir -p "$STASH_DIR"
+
+# Stash API dirs
 for dir in "${API_DIRS[@]}"; do
   if [[ -d "$ROOT/$dir" ]]; then
     stash_name="${dir//\//_}"
@@ -62,10 +72,28 @@ for dir in "${API_DIRS[@]}"; do
   fi
 done
 
+# Stash other game dirs to avoid their dynamic routes breaking static export
+OTHER_GAMES=("run-horses" "minefield" "candy-catch")
+for g in "${OTHER_GAMES[@]}"; do
+  if [[ "$g" != "$GAME" && -d "$ROOT/app/(games)/$g" ]]; then
+    stash_name="games_${g}"
+    mv "$ROOT/app/(games)/$g" "$STASH_DIR/$stash_name"
+    echo "  stashed: app/(games)/$g"
+  fi
+done
+
 echo "→ Building $GAME for CrazyGames..."
 cd "$ROOT"
-NEXT_PUBLIC_CRAZYGAMES=1 NEXT_PUBLIC_CRAZYGAMES_GAME="$GAME" next build
+NEXT_PUBLIC_CRAZYGAMES=1 NEXT_PUBLIC_CRAZYGAMES_GAME="$GAME" npx next build
 
 echo ""
-echo "✓ Build complete. Output: out-poki/"
-echo "  Upload the out-poki/ directory to CrazyGames developer portal."
+ZIP_NAME="crazygames-$GAME.zip"
+echo "→ Creating $ZIP_NAME..."
+cd "$ROOT/out-crazygames"
+zip -r "$ROOT/$ZIP_NAME" . -x "*.DS_Store"
+cd "$ROOT"
+
+echo ""
+echo "✓ Build complete!"
+echo "  ZIP: $ROOT/$ZIP_NAME"
+echo "  Upload $ZIP_NAME to your CrazyGames game entry."
