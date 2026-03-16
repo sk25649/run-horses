@@ -29,7 +29,8 @@ import { safeStorage } from '@/lib/poki/safeStorage';
 
 const THEME = '#ff6eb4';
 const ACCENT = '#ffde59';
-const BASKET_Y = 87; // percent from top
+const BASKET_Y_PCT = 87; // percent from top
+const TICK_MS = 1000 / 60; // ~16.67 ms — fixed physics step
 
 const SCORE_MILESTONES: { threshold: number; text: string }[] = [
   { threshold: 100,  text: 'SWEET! 🍬' },
@@ -37,6 +38,33 @@ const SCORE_MILESTONES: { threshold: number; text: string }[] = [
   { threshold: 500,  text: 'CANDY STORM! 🌪️' },
   { threshold: 1000, text: 'CANDY GOD! 👑' },
 ];
+
+// Pre-generated star positions (deterministic, avoids per-render randomness)
+const STAR_DATA = Array.from({ length: 60 }, (_, i) => ({
+  x: (i * 17 + 3) % 100,
+  y: (i * 29 + 7) % 100,
+  size: (i % 3) + 1,
+  opacity: ((i % 5) + 1) * 0.1,
+}));
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function getComboMultiplierValue(combo: number): number {
+  if (combo >= 10) return 4;
+  if (combo >= 6) return 3;
+  if (combo >= 3) return 2;
+  return 1;
+}
+
+function getPowerupFlashText(emoji: string): string {
+  switch (emoji) {
+    case '🧲': return '🧲 MAGNET!';
+    case '⚡': return '⚡ WIDE!';
+    case '❤️': return '❤️ +LIFE!';
+    case '🎁': return '🎁 MYSTERY!';
+    case '💥': return '💥 OOPS!';
+    default: return emoji;
+  }
+}
 
 // ─── Confetti ─────────────────────────────────────────────────────────────────
 function Confetti() {
@@ -90,266 +118,510 @@ function Confetti() {
 export default function GameScene() {
   const poki = usePoki();
 
-  const [gameState, setGameState] = useState<GameState>(() => createInitialState('easy'));
+  // ── Menu / phase state ──────────────────────────────────────────────────────
+  const [gamePhase, setGamePhase] = useState<GameState['phase']>('idle');
   const [difficulty, setDifficulty] = useState<Difficulty>('easy');
   const [muted, setMutedState] = useState(false);
   const [showRules, setShowRules] = useState(false);
   const [bestScore, setBestScore] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [pointFlash, setPointFlash] = useState<{ text: string; key: number } | null>(null);
-  const [shakeBasket, setShakeBasket] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
 
-  // Visual effects state
-  const [bombFlash, setBombFlash] = useState(false); // red bg flash on bomb
+  // ── HUD state (throttled updates from RAF loop) ─────────────────────────────
+  const [hudScore, setHudScore] = useState(0);
+  const [hudLives, setHudLives] = useState(3);
+  const [hudLevel, setHudLevel] = useState(1);
+  const [hudCombo, setHudCombo] = useState(0);
+  const [hudComboMultiplier, setHudComboMultiplier] = useState(1);
+  const [hudMagnetExpiry, setHudMagnetExpiry] = useState<number | null>(null);
+  const [hudWideExpiry, setHudWideExpiry] = useState<number | null>(null);
+  const [hudCandyRainActive, setHudCandyRainActive] = useState(false);
+
+  // ── Game-over snapshot ──────────────────────────────────────────────────────
+  const [finalScore, setFinalScore] = useState(0);
+  const [finalLevel, setFinalLevel] = useState(1);
+  const [finalMaxCombo, setFinalMaxCombo] = useState(0);
+
+  // ── Visual effect overlays (React-managed, above canvas) ───────────────────
+  const [pointFlash, setPointFlash] = useState<{ text: string; key: number } | null>(null);
   const [powerupFlash, setPowerupFlash] = useState<{ text: string; key: number } | null>(null);
   const [milestoneFlash, setMilestoneFlash] = useState<{ text: string; key: number } | null>(null);
   const [comboBreakFlash, setComboBreakFlash] = useState<{ key: number } | null>(null);
-  const [prevComboMultiplier, setPrevComboMultiplier] = useState(1);
 
-  // Milestone tracking (per game)
-  const milestonesHitRef = useRef<Set<number>>(new Set());
-
-  // Refs for game loop
-  const gameStateRef = useRef<GameState>(gameState);
-  const spawnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const tickTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const levelRef = useRef(1);
-  const rulesShownRef = useRef(false);
+  // ── Core refs ───────────────────────────────────────────────────────────────
+  /** Single source of truth for game state during gameplay — never drives re-renders directly */
+  const gameStateRef = useRef<GameState>(createInitialState('easy'));
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
 
-  // Initialize from localStorage
+  // ── RAF loop timing refs ────────────────────────────────────────────────────
+  const rafRef = useRef<number | null>(null);
+  const lastTimeRef = useRef<number>(0);
+  const accumulatorRef = useRef<number>(0);
+  const spawnAccRef = useRef<number>(0);
+  const totalTicksRef = useRef<number>(0);
+
+  // ── Canvas-side effect refs (no React state needed) ─────────────────────────
+  const bombFlashUntilRef = useRef<number>(0);
+  const shakeUntilRef = useRef<number>(0);
+
+  // ── Change-detection refs for RAF-side effect dispatch ──────────────────────
+  const prevLivesRef = useRef(3);
+  const prevLastCatchKeyRef = useRef<number | null>(null);
+  const prevLastComboBreakRef = useRef<number | null>(null);
+  const prevCandyRainRef = useRef(false);
+  const prevComboMultRef = useRef(1);
+
+  // ── Misc ────────────────────────────────────────────────────────────────────
+  const milestonesHitRef = useRef<Set<number>>(new Set());
+  const rulesShownRef = useRef(false);
+  const keysRef = useRef<Record<string, boolean>>({});
+  /** Mirror of bestScore for use inside RAF without stale closure */
+  const bestScoreRef = useRef(0);
+
+  // ── Init from storage ───────────────────────────────────────────────────────
   useEffect(() => {
     const best = parseInt(safeStorage.getItem('cc_best') || '0', 10);
     setBestScore(best);
+    bestScoreRef.current = best;
     const savedMuted = safeStorage.getItem('cc_muted') === '1';
     setMutedState(savedMuted);
     setMuted(savedMuted);
-
-    // Restore session
     try {
       const saved = sessionStorage.getItem('cc_session_v2');
       if (saved) {
         const data = JSON.parse(saved);
         if (data.gameState?.phase === 'playing') {
-          // Don't restore mid-game — just set difficulty
           setDifficulty(data.difficulty || 'easy');
         }
       }
     } catch { /* ignore */ }
   }, []);
 
-  // Sync gameStateRef
+  // ── Canvas resize sync ──────────────────────────────────────────────────────
   useEffect(() => {
-    gameStateRef.current = gameState;
-  }, [gameState]);
-
-  // Persist session
-  useEffect(() => {
-    if (gameState.phase !== 'idle') {
-      sessionStorage.setItem('cc_session_v2', JSON.stringify({ difficulty, gameState }));
-    }
-  }, [gameState, difficulty]);
-
-  // Point flash
-  useEffect(() => {
-    if (!gameState.lastCatch) return;
-    if (gameState.lastCatch.points > 0) {
-      setPointFlash({ text: `+${gameState.lastCatch.points}`, key: gameState.lastCatch.key });
-      const t = setTimeout(() => setPointFlash(null), 1000);
-      return () => clearTimeout(t);
-    }
-  }, [gameState.lastCatch]);
-
-  // Score milestone flash
-  useEffect(() => {
-    if (gameState.phase !== 'playing') return;
-    for (const m of SCORE_MILESTONES) {
-      if (gameState.score >= m.threshold && !milestonesHitRef.current.has(m.threshold)) {
-        milestonesHitRef.current.add(m.threshold);
-        setMilestoneFlash({ text: m.text, key: Date.now() });
-        const t = setTimeout(() => setMilestoneFlash(null), 1500);
-        return () => clearTimeout(t);
-      }
-    }
-  }, [gameState.score, gameState.phase]);
-
-  // Combo break flash
-  useEffect(() => {
-    if (!gameState.lastComboBreak) return;
-    setComboBreakFlash({ key: gameState.lastComboBreak });
-    const t = setTimeout(() => setComboBreakFlash(null), 1200);
-    return () => clearTimeout(t);
-  }, [gameState.lastComboBreak]);
-
-  // Combo multiplier level-up pulse
-  useEffect(() => {
-    if (gameState.comboMultiplier > prevComboMultiplier) {
-      setPrevComboMultiplier(gameState.comboMultiplier);
-    } else if (gameState.comboMultiplier < prevComboMultiplier) {
-      setPrevComboMultiplier(gameState.comboMultiplier);
-    }
-  }, [gameState.comboMultiplier, prevComboMultiplier]);
-
-  const stopGameLoop = useCallback(() => {
-    if (spawnTimerRef.current) clearTimeout(spawnTimerRef.current);
-    if (tickTimerRef.current) clearInterval(tickTimerRef.current);
-    spawnTimerRef.current = null;
-    tickTimerRef.current = null;
-  }, []);
-
-  // Use a ref for recursive spawn scheduling (avoids stale closure issues)
-  const scheduleSpawnRef = useRef<() => void>(() => {});
-
-  const scheduleSpawn = useCallback(() => {
-    const doSpawn = () => {
-      const interval = getSpawnInterval(gameStateRef.current);
-      spawnTimerRef.current = setTimeout(() => {
-        if (gameStateRef.current.phase !== 'playing') return;
-        setGameState(prev => {
-          if (prev.phase !== 'playing') return prev;
-          return spawnItem(prev);
-        });
-        doSpawn();
-      }, interval);
+    const canvas = canvasRef.current;
+    const area = gameAreaRef.current;
+    if (!canvas || !area) return;
+    const sync = () => {
+      canvas.width = area.clientWidth;
+      canvas.height = area.clientHeight;
     };
-    scheduleSpawnRef.current = doSpawn;
-    doSpawn();
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(area);
+    return () => ro.disconnect();
+  }, [gamePhase]); // re-bind when game area mounts/unmounts
+
+  // ── Canvas draw function ────────────────────────────────────────────────────
+  const drawFrame = useCallback((canvas: HTMLCanvasElement, state: GameState, now: number) => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const W = canvas.width;
+    const H = canvas.height;
+    if (W === 0 || H === 0) return;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Stars
+    ctx.fillStyle = '#fff';
+    for (const s of STAR_DATA) {
+      ctx.globalAlpha = s.opacity;
+      ctx.beginPath();
+      ctx.arc(s.x * W / 100, s.y * H / 100, s.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Falling items
+    const itemFontSize = Math.round(Math.min(44, Math.max(28, W * 0.05)));
+    ctx.font = `${itemFontSize}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const magnetActive = state.activePowerups.magnet !== null;
+
+    for (const item of state.items) {
+      const x = item.x * W / 100;
+      const y = item.y * H / 100;
+
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
+
+      if (item.type === 'bomb') {
+        ctx.shadowColor = '#ff4444';
+        ctx.shadowBlur = 15;
+      } else if (item.type === 'star') {
+        ctx.shadowColor = ACCENT;
+        ctx.shadowBlur = 15;
+      } else if (['magnet', 'wide', 'heart', 'mystery'].includes(item.type)) {
+        ctx.shadowColor = '#aa44ff';
+        ctx.shadowBlur = 15;
+      } else if (magnetActive) {
+        // Candy items glow when magnet is active
+        ctx.shadowColor = ACCENT;
+        ctx.shadowBlur = 20;
+      }
+
+      ctx.fillText(item.emoji, x, y);
+    }
+
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+
+    // Basket
+    const basketFontSize = Math.round(Math.min(64, Math.max(40, W * 0.08)));
+    ctx.font = `${basketFontSize}px serif`;
+
+    let basketXPx = state.basketX * W / 100;
+    const basketYPx = BASKET_Y_PCT * H / 100;
+
+    // Shake oscillation
+    if (now < shakeUntilRef.current) {
+      const progress = (shakeUntilRef.current - now) / 500;
+      basketXPx += Math.sin(now * 0.08) * progress * 8;
+    }
+
+    ctx.shadowColor = state.activePowerups.wide ? '#44aaff' : THEME;
+    ctx.shadowBlur = 12;
+    ctx.fillText('🧺', basketXPx, basketYPx);
+
+    // Wide basket indicator bar
+    if (state.activePowerups.wide) {
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
+      const barW = W * 0.20;
+      const barY = basketYPx + basketFontSize * 0.55;
+      const grad = ctx.createLinearGradient(basketXPx - barW / 2, 0, basketXPx + barW / 2, 0);
+      grad.addColorStop(0, 'transparent');
+      grad.addColorStop(0.5, '#44aaff88');
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.fillRect(basketXPx - barW / 2, barY, barW, 4);
+    }
+
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+
+    // Ground line
+    ctx.strokeStyle = `${THEME}44`;
+    ctx.lineWidth = 2;
+    const groundY = 92 * H / 100;
+    ctx.beginPath();
+    ctx.moveTo(0.05 * W, groundY);
+    ctx.lineTo(0.95 * W, groundY);
+    ctx.stroke();
+
+    // Bomb flash overlay (canvas-side, 300ms)
+    if (now < bombFlashUntilRef.current) {
+      const t = (bombFlashUntilRef.current - now) / 300;
+      ctx.fillStyle = `rgba(255, 0, 0, ${0.30 * t})`;
+      ctx.fillRect(0, 0, W, H);
+    }
   }, []);
 
-  const startGameLoop = useCallback(() => {
-    stopGameLoop();
-    // Tick physics at 30fps
-    tickTimerRef.current = setInterval(() => {
-      setGameState(prev => {
-        if (prev.phase !== 'playing') return prev;
+  // ── Stop loop ───────────────────────────────────────────────────────────────
+  const stopLoop = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, []);
 
-        // Apply magnet effect before tick
-        let stateWithMagnet = prev;
-        if (prev.activePowerups.magnet !== null) {
-          const pulledItems = prev.items.map(item => {
+  // ── Start RAF game loop ─────────────────────────────────────────────────────
+  const startLoop = useCallback(() => {
+    stopLoop();
+    lastTimeRef.current = performance.now();
+    accumulatorRef.current = 0;
+    spawnAccRef.current = 0;
+    totalTicksRef.current = 0;
+
+    const loop = (now: number) => {
+      const delta = Math.min(now - lastTimeRef.current, 100);
+      lastTimeRef.current = now;
+      accumulatorRef.current += delta;
+      spawnAccRef.current += delta;
+
+      let tickCount = 0;
+
+      // Fixed-timestep physics loop
+      while (accumulatorRef.current >= TICK_MS) {
+        accumulatorRef.current -= TICK_MS;
+
+        if (gameStateRef.current.phase !== 'playing') break;
+        tickCount++;
+
+        // Keyboard basket movement (2 steps per tick @ 60Hz ≈ old 4 steps @ 30Hz)
+        const STEP = 2;
+        if (keysRef.current['ArrowLeft'] || keysRef.current['a'] || keysRef.current['A']) {
+          gameStateRef.current = moveBasket(gameStateRef.current, gameStateRef.current.basketX - STEP);
+        }
+        if (keysRef.current['ArrowRight'] || keysRef.current['d'] || keysRef.current['D']) {
+          gameStateRef.current = moveBasket(gameStateRef.current, gameStateRef.current.basketX + STEP);
+        }
+
+        // Magnet pull
+        if (gameStateRef.current.activePowerups.magnet !== null) {
+          const bx = gameStateRef.current.basketX;
+          const pulledItems = gameStateRef.current.items.map(item => {
             if (item.type === 'candy' || item.type === 'star') {
-              const pull = (prev.basketX - item.x) * 0.04;
-              return { ...item, x: item.x + pull };
+              return { ...item, x: item.x + (bx - item.x) * 0.04 };
             }
             return item;
           });
-          stateWithMagnet = { ...prev, items: pulledItems };
+          gameStateRef.current = { ...gameStateRef.current, items: pulledItems };
         }
 
-        let next = tickItems(stateWithMagnet);
-        const prevLevel = prev.level;
-        const prevCombo = prev.combo;
-        const prevCandyRain = prev.candyRain.active;
-        next = checkCollisions(next);
+        const prevState = gameStateRef.current;
+        gameStateRef.current = tickItems(gameStateRef.current);
+        gameStateRef.current = checkCollisions(gameStateRef.current);
+        const nextState = gameStateRef.current;
 
-        // Level up sound
-        if (next.level > prevLevel && next.level > 1) {
+        // ── Side effects: sounds & React overlay triggers ──────────────────
+
+        // Level up
+        if (nextState.level > prevState.level && nextState.level > 1) {
           playLevelUp();
         }
 
-        // Candy rain started
-        if (!prevCandyRain && next.candyRain.active) {
+        // Candy rain start/end
+        if (!prevCandyRainRef.current && nextState.candyRain.active) {
           playCandyRain();
+          prevCandyRainRef.current = true;
+          setHudCandyRainActive(true);
+        } else if (prevCandyRainRef.current && !nextState.candyRain.active) {
+          prevCandyRainRef.current = false;
+          setHudCandyRainActive(false);
         }
 
-        // Catch sound
-        if (next.lastCatch && next.lastCatch !== prev.lastCatch) {
-          const isPowerup = ['🧲', '⚡', '❤️', '🎁', '💥'].includes(next.lastCatch.emoji);
+        // Catch event
+        if (nextState.lastCatch && nextState.lastCatch.key !== prevLastCatchKeyRef.current) {
+          prevLastCatchKeyRef.current = nextState.lastCatch.key;
+          const c = nextState.lastCatch;
+          const isPowerup = ['🧲', '⚡', '❤️', '🎁', '💥'].includes(c.emoji);
           if (isPowerup) {
             playPowerup();
-            setPowerupFlash({ text: getPowerupFlashText(next.lastCatch.emoji), key: next.lastCatch.key });
+            const k = c.key;
+            setPowerupFlash({ text: getPowerupFlashText(c.emoji), key: k });
             setTimeout(() => setPowerupFlash(null), 1200);
-          } else if (next.lastCatch.points >= 20) {
+          } else if (c.points >= 20) {
             playCatchBig();
           } else {
             playCatch();
           }
+          if (c.points > 0) {
+            setPointFlash({ text: `+${c.points}`, key: c.key });
+            setTimeout(() => setPointFlash(null), 1000);
+          }
         }
 
-        // Combo milestone sound (when crossing a combo tier)
-        const prevMultiplier = getComboMultiplierValue(prevCombo);
-        const nextMultiplier = getComboMultiplierValue(next.combo);
-        if (nextMultiplier > prevMultiplier) {
+        // Combo tier up → sound
+        if (nextState.comboMultiplier > prevComboMultRef.current) {
           playCombo();
         }
+        prevComboMultRef.current = nextState.comboMultiplier;
 
         // Bomb hit
-        if (next.lives < prev.lives) {
+        if (nextState.lives < prevLivesRef.current) {
           playBomb();
-          setShakeBasket(true);
-          setBombFlash(true);
-          setTimeout(() => setShakeBasket(false), 500);
-          setTimeout(() => setBombFlash(false), 300);
+          bombFlashUntilRef.current = now + 300;
+          shakeUntilRef.current = now + 500;
+          prevLivesRef.current = nextState.lives;
+        }
+
+        // Combo break
+        if (nextState.lastComboBreak && nextState.lastComboBreak !== prevLastComboBreakRef.current) {
+          prevLastComboBreakRef.current = nextState.lastComboBreak;
+          setComboBreakFlash({ key: nextState.lastComboBreak });
+          setTimeout(() => setComboBreakFlash(null), 1200);
+        }
+
+        // Score milestones
+        for (const m of SCORE_MILESTONES) {
+          if (nextState.score >= m.threshold && !milestonesHitRef.current.has(m.threshold)) {
+            milestonesHitRef.current.add(m.threshold);
+            setMilestoneFlash({ text: m.text, key: now });
+            setTimeout(() => setMilestoneFlash(null), 1500);
+            break;
+          }
         }
 
         // Game over
-        if (next.phase === 'gameover' && prev.phase === 'playing') {
-          stopGameLoop();
+        if (nextState.phase === 'gameover' && prevState.phase === 'playing') {
+          stopLoop();
           playGameOver();
           poki.gameplayStop();
           poki.commercialBreak().catch(() => {});
-          // Save best score
-          const newBest = Math.max(next.score, parseInt(safeStorage.getItem('cc_best') || '0', 10));
+          const newBest = Math.max(nextState.score, bestScoreRef.current);
+          bestScoreRef.current = newBest;
           safeStorage.setItem('cc_best', String(newBest));
           setBestScore(newBest);
-          if (next.score >= newBest && next.score > 0) setShowConfetti(true);
+          setFinalScore(nextState.score);
+          setFinalLevel(nextState.level);
+          setFinalMaxCombo(nextState.maxCombo);
+          if (nextState.score >= newBest && nextState.score > 0) setShowConfetti(true);
+          setGamePhase('gameover');
+          if (canvasRef.current) drawFrame(canvasRef.current, nextState, now);
+          return; // exit loop
+        }
+      }
+
+      // Spawn items via accumulator (replaces setTimeout chain)
+      if (gameStateRef.current.phase === 'playing') {
+        const spawnInterval = getSpawnInterval(gameStateRef.current);
+        if (spawnAccRef.current >= spawnInterval) {
+          spawnAccRef.current -= spawnInterval;
+          gameStateRef.current = spawnItem(gameStateRef.current);
+        }
+      }
+
+      // Draw every frame
+      if (canvasRef.current && gameStateRef.current.phase === 'playing') {
+        drawFrame(canvasRef.current, gameStateRef.current, now);
+      }
+
+      // Throttle HUD state updates to every 4 ticks
+      if (tickCount > 0) {
+        const prev = totalTicksRef.current;
+        totalTicksRef.current += tickCount;
+        // Update when we cross a multiple-of-4 boundary
+        if (Math.floor(totalTicksRef.current / 4) > Math.floor(prev / 4)) {
+          const s = gameStateRef.current;
+          setHudScore(s.score);
+          setHudLives(s.lives);
+          setHudLevel(s.level);
+          setHudCombo(s.combo);
+          setHudComboMultiplier(s.comboMultiplier);
+          setHudMagnetExpiry(s.activePowerups.magnet);
+          setHudWideExpiry(s.activePowerups.wide);
         }
 
-        return next;
-      });
-    }, 33);
-    scheduleSpawn();
-  }, [stopGameLoop, scheduleSpawn, poki]);
+        // Session persistence
+        if (gameStateRef.current.phase === 'playing') {
+          sessionStorage.setItem(
+            'cc_session_v2',
+            JSON.stringify({ difficulty: gameStateRef.current.difficulty, gameState: gameStateRef.current }),
+          );
+        }
+      }
+
+      rafRef.current = requestAnimationFrame(loop);
+    };
+
+    rafRef.current = requestAnimationFrame(loop);
+  }, [drawFrame, stopLoop, poki]);
+
+  // ── Keyboard controls ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (gamePhase !== 'playing') return;
+    const onKeyDown = (e: KeyboardEvent) => { keysRef.current[e.key] = true; };
+    const onKeyUp = (e: KeyboardEvent) => { keysRef.current[e.key] = false; };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      keysRef.current = {};
+    };
+  }, [gamePhase]);
+
+  // ── Touch / pointer controls ────────────────────────────────────────────────
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (gameStateRef.current.phase !== 'playing') return;
+    const rect = gameAreaRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const pct = ((e.clientX - rect.left) / rect.width) * 100;
+    gameStateRef.current = moveBasket(gameStateRef.current, pct);
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (gameStateRef.current.phase !== 'playing') return;
+    e.preventDefault();
+    const rect = gameAreaRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const touch = e.touches[0];
+    const pct = ((touch.clientX - rect.left) / rect.width) * 100;
+    gameStateRef.current = moveBasket(gameStateRef.current, pct);
+  }, []);
+
+  // ── Game actions ────────────────────────────────────────────────────────────
+  const resetEffectRefs = useCallback(() => {
+    prevLivesRef.current = 3;
+    prevLastCatchKeyRef.current = null;
+    prevLastComboBreakRef.current = null;
+    prevCandyRainRef.current = false;
+    prevComboMultRef.current = 1;
+    bombFlashUntilRef.current = 0;
+    shakeUntilRef.current = 0;
+    milestonesHitRef.current = new Set();
+    keysRef.current = {};
+    totalTicksRef.current = 0;
+  }, []);
+
+  const resetHudState = useCallback(() => {
+    setHudScore(0);
+    setHudLives(3);
+    setHudLevel(1);
+    setHudCombo(0);
+    setHudComboMultiplier(1);
+    setHudMagnetExpiry(null);
+    setHudWideExpiry(null);
+    setHudCandyRainActive(false);
+    setPointFlash(null);
+    setPowerupFlash(null);
+    setMilestoneFlash(null);
+    setComboBreakFlash(null);
+  }, []);
 
   const handleStartGame = useCallback((diff: Difficulty) => {
     setDifficulty(diff);
     const newState = startGame(createInitialState(diff));
-    setGameState(newState);
+    gameStateRef.current = newState;
+    resetEffectRefs();
+    resetHudState();
     setGameStarted(true);
+    setGamePhase('playing');
     setShowConfetti(false);
-    levelRef.current = 1;
-    milestonesHitRef.current = new Set();
-    setPrevComboMultiplier(1);
     playGameStart();
     poki.gameplayStart();
 
-    // Show rules once
     if (!rulesShownRef.current && safeStorage.getItem('cc_hide_rules') !== '1') {
       rulesShownRef.current = true;
       setShowRules(true);
-      // Pause game while rules shown — restart loop after close
+      // Loop starts after rules modal closes
     } else {
-      startGameLoop();
+      startLoop();
     }
-  }, [poki, startGameLoop]);
+  }, [poki, startLoop, resetEffectRefs, resetHudState]);
 
   const handleCloseRules = useCallback((hideForever: boolean) => {
     if (hideForever) safeStorage.setItem('cc_hide_rules', '1');
     setShowRules(false);
-    startGameLoop();
-  }, [startGameLoop]);
+    startLoop();
+  }, [startLoop]);
 
   const handleRestart = useCallback(() => {
-    stopGameLoop();
+    stopLoop();
     setShowConfetti(false);
-    milestonesHitRef.current = new Set();
-    setPrevComboMultiplier(1);
     const newState = startGame(createInitialState(difficulty));
-    setGameState(newState);
+    gameStateRef.current = newState;
+    resetEffectRefs();
+    resetHudState();
+    setGamePhase('playing');
     playGameStart();
     poki.gameplayStart();
-    startGameLoop();
-  }, [difficulty, poki, startGameLoop, stopGameLoop]);
+    startLoop();
+  }, [difficulty, poki, startLoop, stopLoop, resetEffectRefs, resetHudState]);
 
   const handleBackToMenu = useCallback(() => {
-    stopGameLoop();
+    stopLoop();
     sessionStorage.removeItem('cc_session_v2');
     setGameStarted(false);
     setShowConfetti(false);
-    setGameState(createInitialState(difficulty));
+    setGamePhase('idle');
+    gameStateRef.current = createInitialState(difficulty);
     poki.gameplayStop();
-  }, [difficulty, poki, stopGameLoop]);
+  }, [difficulty, poki, stopLoop]);
 
   const handleMuteToggle = useCallback(() => {
     const next = !muted;
@@ -358,69 +630,18 @@ export default function GameScene() {
     safeStorage.setItem('cc_muted', next ? '1' : '0');
   }, [muted]);
 
-  // Cleanup on unmount
-  useEffect(() => () => stopGameLoop(), [stopGameLoop]);
+  // ── Cleanup ─────────────────────────────────────────────────────────────────
+  useEffect(() => () => stopLoop(), [stopLoop]);
 
-  // ─── Keyboard controls ────────────────────────────────────────────────────
-  useEffect(() => {
-    if (gameState.phase !== 'playing') return;
-    const STEP = 4;
-    const keys: Record<string, boolean> = {};
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      keys[e.key] = true;
-    };
-    const onKeyUp = (e: KeyboardEvent) => {
-      keys[e.key] = false;
-    };
-
-    const moveInterval = setInterval(() => {
-      if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
-        setGameState(prev => prev.phase === 'playing' ? moveBasket(prev, prev.basketX - STEP) : prev);
-      }
-      if (keys['ArrowRight'] || keys['d'] || keys['D']) {
-        setGameState(prev => prev.phase === 'playing' ? moveBasket(prev, prev.basketX + STEP) : prev);
-      }
-    }, 33);
-
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-      clearInterval(moveInterval);
-    };
-  }, [gameState.phase]);
-
-  // ─── Touch / mouse controls ───────────────────────────────────────────────
-  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (gameState.phase !== 'playing') return;
-    const rect = gameAreaRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const pct = ((e.clientX - rect.left) / rect.width) * 100;
-    setGameState(prev => prev.phase === 'playing' ? moveBasket(prev, pct) : prev);
-  }, [gameState.phase]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    if (gameState.phase !== 'playing') return;
-    e.preventDefault();
-    const rect = gameAreaRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const touch = e.touches[0];
-    const pct = ((touch.clientX - rect.left) / rect.width) * 100;
-    setGameState(prev => prev.phase === 'playing' ? moveBasket(prev, pct) : prev);
-  }, [gameState.phase]);
-
-  const isPlaying = gameState.phase === 'playing';
-  const isGameOver = gameState.phase === 'gameover';
-  const isIdle = !gameStarted;
-
-  // Power-up time remaining (seconds)
+  // ── Derived HUD values ──────────────────────────────────────────────────────
   const now = Date.now();
-  const magnetSecsLeft = gameState.activePowerups.magnet ? Math.max(0, Math.ceil((gameState.activePowerups.magnet - now) / 1000)) : 0;
-  const wideSecsLeft = gameState.activePowerups.wide ? Math.max(0, Math.ceil((gameState.activePowerups.wide - now) / 1000)) : 0;
+  const magnetSecsLeft = hudMagnetExpiry ? Math.max(0, Math.ceil((hudMagnetExpiry - now) / 1000)) : 0;
+  const wideSecsLeft = hudWideExpiry ? Math.max(0, Math.ceil((hudWideExpiry - now) / 1000)) : 0;
+  const comboColor = hudComboMultiplier >= 4 ? '#ff2255' : hudComboMultiplier === 3 ? '#ff8800' : ACCENT;
 
-  const comboColor = gameState.comboMultiplier >= 4 ? '#ff2255' : gameState.comboMultiplier === 3 ? '#ff8800' : '#ffde59';
+  const isPlaying = gamePhase === 'playing';
+  const isGameOver = gamePhase === 'gameover';
+  const isIdle = !gameStarted;
 
   return (
     <div
@@ -437,20 +658,8 @@ export default function GameScene() {
       {/* ── Confetti ── */}
       {showConfetti && <Confetti />}
 
-      {/* ── Bomb flash overlay ── */}
-      {bombFlash && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(255, 0, 0, 0.30)',
-          pointerEvents: 'none',
-          zIndex: 45,
-          animation: 'bombFlash 0.3s ease-out forwards',
-        }} />
-      )}
-
-      {/* ── Candy rain overlay ── */}
-      {gameState.candyRain.active && (
+      {/* ── Candy rain overlay (React HUD, not canvas) ── */}
+      {hudCandyRainActive && (
         <div style={{
           position: 'fixed',
           inset: 0,
@@ -463,9 +672,9 @@ export default function GameScene() {
           <div style={{
             fontSize: 'clamp(28px, 7vw, 52px)',
             fontWeight: 900,
-            color: '#ffde59',
+            color: ACCENT,
             textAlign: 'center',
-            textShadow: '0 0 40px #ff6eb4, 0 0 80px #ffde59',
+            textShadow: `0 0 40px ${THEME}, 0 0 80px ${ACCENT}`,
             animation: 'candyRainPulse 0.6s ease-in-out infinite alternate',
             letterSpacing: -1,
           }}>
@@ -498,7 +707,7 @@ export default function GameScene() {
         </div>
       )}
 
-      {/* ── Game area (falling items + basket) ── */}
+      {/* ── Canvas game area (stars, items, basket, bomb flash) ── */}
       {(isPlaying || isGameOver) && (
         <div
           ref={gameAreaRef}
@@ -506,77 +715,10 @@ export default function GameScene() {
           onTouchMove={handleTouchMove}
           style={{ position: 'absolute', inset: 0, cursor: 'none', touchAction: 'none' }}
         >
-          {/* Stars background */}
-          <StarField />
-
-          {/* Falling items */}
-          {gameState.items.map(item => (
-            <div
-              key={item.id}
-              style={{
-                position: 'absolute',
-                left: `${item.x}%`,
-                top: `${item.y}%`,
-                transform: 'translate(-50%, -50%)',
-                fontSize: 'clamp(28px, 5vw, 44px)',
-                filter: item.type === 'bomb'
-                  ? 'drop-shadow(0 0 8px #ff4444)'
-                  : item.type === 'star'
-                    ? 'drop-shadow(0 0 10px #ffde59) drop-shadow(0 0 20px #ffaa00)'
-                    : ['magnet', 'wide', 'heart', 'mystery'].includes(item.type)
-                      ? 'drop-shadow(0 0 10px #aa44ff) drop-shadow(0 0 20px #ff6eb4)'
-                      : 'drop-shadow(0 0 6px rgba(255,220,100,0.7))',
-                transition: 'none',
-                pointerEvents: 'none',
-              }}
-            >
-              {item.emoji}
-            </div>
-          ))}
-
-          {/* Basket */}
-          <div
-            style={{
-              position: 'absolute',
-              left: `${gameState.basketX}%`,
-              top: `${BASKET_Y}%`,
-              transform: `translate(-50%, -50%) ${shakeBasket ? 'translateX(6px)' : ''}`,
-              transition: shakeBasket ? 'none' : 'transform 0.05s',
-              fontSize: 'clamp(40px, 8vw, 64px)',
-              filter: `drop-shadow(0 0 12px ${gameState.activePowerups.wide ? '#44aaff' : THEME})`,
-              pointerEvents: 'none',
-              animation: shakeBasket ? 'shake 0.5s ease-in-out' : 'none',
-            }}
-          >
-            🧺
-          </div>
-
-          {/* Wide basket indicator — visual width bar */}
-          {gameState.activePowerups.wide && (
-            <div style={{
-              position: 'absolute',
-              left: `${gameState.basketX}%`,
-              top: `${BASKET_Y}%`,
-              transform: 'translate(-50%, -50%)',
-              width: '20%',
-              height: 4,
-              background: 'linear-gradient(90deg, transparent, #44aaff88, transparent)',
-              borderRadius: 2,
-              pointerEvents: 'none',
-              marginTop: 36,
-            }} />
-          )}
-
-          {/* Ground line */}
-          <div style={{
-            position: 'absolute',
-            bottom: '8%',
-            left: '5%',
-            right: '5%',
-            height: 2,
-            background: `linear-gradient(90deg, transparent, ${THEME}44, transparent)`,
-            borderRadius: 2,
-          }} />
+          <canvas
+            ref={canvasRef}
+            style={{ display: 'block', width: '100%', height: '100%' }}
+          />
         </div>
       )}
 
@@ -594,31 +736,27 @@ export default function GameScene() {
           zIndex: 20,
           flexWrap: 'wrap',
         }}>
-          {/* Score */}
           <HudPanel>
             <HudLabel>SCORE</HudLabel>
-            <HudValue color={ACCENT}>{gameState.score}</HudValue>
+            <HudValue color={ACCENT}>{hudScore}</HudValue>
           </HudPanel>
-          {/* Lives */}
           <HudPanel>
             <HudLabel>LIVES</HudLabel>
             <div style={{ display: 'flex', gap: 3, marginTop: 2 }}>
               {Array.from({ length: 3 }).map((_, i) => (
-                <span key={i} style={{ fontSize: 16, opacity: i < gameState.lives ? 1 : 0.2 }}>❤️</span>
+                <span key={i} style={{ fontSize: 16, opacity: i < hudLives ? 1 : 0.2 }}>❤️</span>
               ))}
             </div>
           </HudPanel>
-          {/* Level */}
           <HudPanel>
             <HudLabel>LEVEL</HudLabel>
-            <HudValue color={THEME}>{gameState.level}</HudValue>
+            <HudValue color={THEME}>{hudLevel}</HudValue>
           </HudPanel>
 
-          {/* Combo panel — only when combo >= 3 */}
-          {gameState.combo >= 3 && (
+          {hudCombo >= 3 && (
             <HudPanel style={{
               borderColor: `${comboColor}66`,
-              background: `rgba(4,4,14,0.9)`,
+              background: 'rgba(4,4,14,0.9)',
               boxShadow: `0 0 16px ${comboColor}44`,
               animation: 'comboGlow 0.8s ease-in-out infinite alternate',
             }}>
@@ -630,12 +768,11 @@ export default function GameScene() {
                 letterSpacing: 1,
                 textShadow: `0 0 12px ${comboColor}`,
               }}>
-                x{gameState.comboMultiplier} {gameState.comboMultiplier >= 4 ? '🔥' : gameState.comboMultiplier === 3 ? '🔥' : '⚡'}
+                x{hudComboMultiplier} {hudComboMultiplier >= 4 ? '🔥' : hudComboMultiplier === 3 ? '🔥' : '⚡'}
               </div>
             </HudPanel>
           )}
 
-          {/* Active power-up pills */}
           {magnetSecsLeft > 0 && (
             <div style={{
               background: 'rgba(68, 170, 255, 0.25)',
@@ -653,8 +790,8 @@ export default function GameScene() {
           )}
           {wideSecsLeft > 0 && (
             <div style={{
-              background: 'rgba(255, 220, 89, 0.25)',
-              border: '1px solid rgba(255, 220, 89, 0.5)',
+              background: `rgba(255, 220, 89, 0.25)`,
+              border: `1px solid rgba(255, 220, 89, 0.5)`,
               borderRadius: 20,
               padding: '6px 12px',
               fontSize: 12,
@@ -667,12 +804,10 @@ export default function GameScene() {
             </div>
           )}
 
-          {/* Best */}
           <HudPanel style={{ marginLeft: 'auto' }}>
             <HudLabel>BEST</HudLabel>
             <HudValue color="#aaa">{bestScore}</HudValue>
           </HudPanel>
-          {/* Mute */}
           <button
             onClick={handleMuteToggle}
             style={{
@@ -745,13 +880,13 @@ export default function GameScene() {
             top: '38%',
             left: '50%',
             transform: 'translateX(-50%)',
-            color: '#ff6eb4',
+            color: THEME,
             fontSize: 26,
             fontWeight: 900,
             pointerEvents: 'none',
             zIndex: 40,
             animation: 'pointRise 1.2s ease-out forwards',
-            textShadow: '0 0 20px #ff6eb4',
+            textShadow: `0 0 20px ${THEME}`,
             whiteSpace: 'nowrap',
           }}
         >
@@ -759,7 +894,7 @@ export default function GameScene() {
         </div>
       )}
 
-      {/* ── Mode / difficulty select (idle) ── */}
+      {/* ── Mode select (idle) ── */}
       {isIdle && (
         <ModeSelect
           bestScore={bestScore}
@@ -769,18 +904,16 @@ export default function GameScene() {
         />
       )}
 
-      {/* ── How-to-play modal ── */}
-      {showRules && (
-        <RulesModal onClose={handleCloseRules} />
-      )}
+      {/* ── Rules modal ── */}
+      {showRules && <RulesModal onClose={handleCloseRules} />}
 
       {/* ── Game over screen ── */}
       {isGameOver && (
         <GameOverScreen
-          score={gameState.score}
+          score={finalScore}
           bestScore={bestScore}
-          level={gameState.level}
-          maxCombo={gameState.maxCombo}
+          level={finalLevel}
+          maxCombo={finalMaxCombo}
           onRestart={handleRestart}
           onMenu={handleBackToMenu}
         />
@@ -792,17 +925,6 @@ export default function GameScene() {
           0%   { opacity: 1; transform: translateX(-50%) translateY(0); }
           100% { opacity: 0; transform: translateX(-50%) translateY(-60px); }
         }
-        @keyframes shake {
-          0%, 100% { transform: translate(-50%, -50%) translateX(0); }
-          20% { transform: translate(-50%, -50%) translateX(-8px); }
-          40% { transform: translate(-50%, -50%) translateX(8px); }
-          60% { transform: translate(-50%, -50%) translateX(-6px); }
-          80% { transform: translate(-50%, -50%) translateX(6px); }
-        }
-        @keyframes floatDown {
-          from { transform: translate(-50%, -50%) translateY(-10px); opacity: 0; }
-          to   { transform: translate(-50%, -50%) translateY(0); opacity: 1; }
-        }
         @keyframes pulse {
           0%, 100% { transform: scale(1); }
           50% { transform: scale(1.05); }
@@ -810,10 +932,6 @@ export default function GameScene() {
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(20px); }
           to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes bombFlash {
-          0%   { opacity: 1; }
-          100% { opacity: 0; }
         }
         @keyframes candyRainPulse {
           0%   { transform: scale(1); opacity: 0.9; }
@@ -832,58 +950,6 @@ export default function GameScene() {
         }
       `}</style>
     </div>
-  );
-}
-
-// ─── Helper ────────────────────────────────────────────────────────────────────
-function getComboMultiplierValue(combo: number): number {
-  if (combo >= 10) return 4;
-  if (combo >= 6) return 3;
-  if (combo >= 3) return 2;
-  return 1;
-}
-
-function getPowerupFlashText(emoji: string): string {
-  switch (emoji) {
-    case '🧲': return '🧲 MAGNET!';
-    case '⚡': return '⚡ WIDE!';
-    case '❤️': return '❤️ +LIFE!';
-    case '🎁': return '🎁 MYSTERY!';
-    case '💥': return '💥 OOPS!';
-    default: return emoji;
-  }
-}
-
-// Pre-generate stars outside component to avoid impure calls during render
-const STAR_DATA = Array.from({ length: 60 }, (_, i) => ({
-  id: i,
-  x: (i * 17 + 3) % 100,
-  y: (i * 29 + 7) % 100,
-  size: (i % 3) + 1,
-  opacity: ((i % 5) + 1) * 0.1,
-}));
-
-// ─── Star field decoration ────────────────────────────────────────────────────
-function StarField() {
-  return (
-    <>
-      {STAR_DATA.map(s => (
-        <div
-          key={s.id}
-          style={{
-            position: 'absolute',
-            left: `${s.x}%`,
-            top: `${s.y}%`,
-            width: s.size,
-            height: s.size,
-            borderRadius: '50%',
-            background: '#fff',
-            opacity: s.opacity,
-            pointerEvents: 'none',
-          }}
-        />
-      ))}
-    </>
   );
 }
 
@@ -932,9 +998,9 @@ function ModeSelect({
   onStart: (diff: Difficulty) => void;
 }) {
   const difficulties: { key: Difficulty; label: string; desc: string; emoji: string; color: string }[] = [
-    { key: 'easy',   label: 'EASY',   desc: 'Slow & sweet 🍭',    emoji: '😊', color: '#44cc88' },
-    { key: 'medium', label: 'MEDIUM', desc: 'Getting spicy 🌶️',   emoji: '😅', color: ACCENT },
-    { key: 'hard',   label: 'HARD',   desc: 'Total chaos 💥',     emoji: '🔥', color: '#ff6644' },
+    { key: 'easy',   label: 'EASY',   desc: 'Slow & sweet 🍭',  emoji: '😊', color: '#44cc88' },
+    { key: 'medium', label: 'MEDIUM', desc: 'Getting spicy 🌶️', emoji: '😅', color: ACCENT },
+    { key: 'hard',   label: 'HARD',   desc: 'Total chaos 💥',   emoji: '🔥', color: '#ff6644' },
   ];
 
   return (
@@ -950,13 +1016,10 @@ function ModeSelect({
       zIndex: 30,
       animation: 'fadeIn 0.4s ease-out',
     }}>
-      {/* Back to all games */}
       <button
         onClick={() => { sessionStorage.removeItem('cc_session_v2'); window.location.href = '/'; }}
         style={{
-          position: 'absolute',
-          top: 16,
-          left: 16,
+          position: 'absolute', top: 16, left: 16,
           background: 'rgba(4,4,14,0.75)',
           border: '1px solid rgba(255,255,255,0.15)',
           color: '#888',
@@ -973,13 +1036,10 @@ function ModeSelect({
         ← ALL GAMES
       </button>
 
-      {/* Mute button */}
       <button
         onClick={onToggleMute}
         style={{
-          position: 'absolute',
-          top: 16,
-          right: 16,
+          position: 'absolute', top: 16, right: 16,
           background: 'rgba(4,4,14,0.75)',
           border: '1px solid rgba(255,255,255,0.08)',
           color: '#fff',
@@ -993,7 +1053,6 @@ function ModeSelect({
         {muted ? '🔇' : '🔊'}
       </button>
 
-      {/* Title */}
       <div style={{ textAlign: 'center', marginBottom: 8 }}>
         <div style={{ fontSize: 'clamp(60px, 15vw, 90px)', lineHeight: 1, marginBottom: 8 }}>🍬</div>
         <h1 style={{
@@ -1016,7 +1075,6 @@ function ModeSelect({
         )}
       </div>
 
-      {/* How to play */}
       <div style={{
         background: 'rgba(255,255,255,0.05)',
         border: '1px solid rgba(255,255,255,0.1)',
@@ -1037,7 +1095,6 @@ function ModeSelect({
         <span style={{ fontSize: 20 }}>⬅️➡️</span> Arrow keys or drag to move
       </div>
 
-      {/* Difficulty cards */}
       <div style={{
         display: 'flex',
         gap: 12,
@@ -1088,23 +1145,18 @@ function ModeSelect({
 function RulesModal({ onClose }: { onClose: (hideForever: boolean) => void }) {
   return (
     <div style={{
-      position: 'fixed',
-      inset: 0,
+      position: 'fixed', inset: 0,
       background: 'rgba(0,0,0,0.7)',
       backdropFilter: 'blur(6px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 60,
-      padding: 20,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 60, padding: 20,
     }}>
       <div style={{
         background: 'linear-gradient(135deg, #1a0a2e, #2d1060)',
         border: `2px solid ${THEME}44`,
         borderRadius: 20,
         padding: 'clamp(20px, 4vw, 40px)',
-        maxWidth: 380,
-        width: '100%',
+        maxWidth: 380, width: '100%',
         textAlign: 'center',
         animation: 'fadeIn 0.3s ease-out',
       }}>
@@ -1117,7 +1169,7 @@ function RulesModal({ onClose }: { onClose: (hideForever: boolean) => void }) {
           💣 Avoid the bombs — they cost a life<br />
           ❤️ You have 3 lives<br />
           ⚡ Speed increases every 10 catches<br />
-          🔥 Combos: 3+ catches in a row = x2, 6+ = x3, 10+ = x4!<br />
+          🔥 Combos: 3+ catches = x2, 6+ = x3, 10+ = x4!<br />
           ⭐ Stars are worth 3x points<br />
           🧲 Magnet pulls candy toward you (4s)<br />
           ⚡ Wide net doubles catch range (5s)<br />
@@ -1133,17 +1185,10 @@ function RulesModal({ onClose }: { onClose: (hideForever: boolean) => void }) {
           <button
             onClick={() => onClose(false)}
             style={{
-              background: THEME,
-              border: 'none',
-              color: '#fff',
-              padding: '14px 32px',
-              borderRadius: 12,
-              fontSize: 14,
-              fontWeight: 800,
-              cursor: 'pointer',
-              letterSpacing: 2,
-              fontFamily: 'inherit',
-              touchAction: 'manipulation',
+              background: THEME, border: 'none', color: '#fff',
+              padding: '14px 32px', borderRadius: 12,
+              fontSize: 14, fontWeight: 800, cursor: 'pointer',
+              letterSpacing: 2, fontFamily: 'inherit', touchAction: 'manipulation',
             }}
           >
             LET&apos;S GO! 🍭
@@ -1154,14 +1199,9 @@ function RulesModal({ onClose }: { onClose: (hideForever: boolean) => void }) {
               background: 'transparent',
               border: '1px solid rgba(255,255,255,0.15)',
               color: '#666',
-              padding: '14px 24px',
-              borderRadius: 12,
-              fontSize: 11,
-              fontWeight: 700,
-              cursor: 'pointer',
-              letterSpacing: 1.5,
-              fontFamily: 'inherit',
-              touchAction: 'manipulation',
+              padding: '14px 24px', borderRadius: 12,
+              fontSize: 11, fontWeight: 700, cursor: 'pointer',
+              letterSpacing: 1.5, fontFamily: 'inherit', touchAction: 'manipulation',
             }}
           >
             DON&apos;T SHOW AGAIN
@@ -1174,49 +1214,32 @@ function RulesModal({ onClose }: { onClose: (hideForever: boolean) => void }) {
 
 // ─── Game over screen ─────────────────────────────────────────────────────────
 function GameOverScreen({
-  score,
-  bestScore,
-  level,
-  maxCombo,
-  onRestart,
-  onMenu,
+  score, bestScore, level, maxCombo, onRestart, onMenu,
 }: {
-  score: number;
-  bestScore: number;
-  level: number;
-  maxCombo: number;
-  onRestart: () => void;
-  onMenu: () => void;
+  score: number; bestScore: number; level: number; maxCombo: number;
+  onRestart: () => void; onMenu: () => void;
 }) {
   const isNewBest = score >= bestScore && score > 0;
   return (
     <div style={{
-      position: 'fixed',
-      inset: 0,
+      position: 'fixed', inset: 0,
       background: 'rgba(0,0,0,0.7)',
       backdropFilter: 'blur(6px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 50,
-      padding: 20,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 50, padding: 20,
     }}>
       <div style={{
         background: 'linear-gradient(135deg, #1a0a2e, #2d1060)',
         border: `2px solid ${isNewBest ? ACCENT : THEME}66`,
         borderRadius: 24,
         padding: 'clamp(24px, 5vw, 48px)',
-        maxWidth: 380,
-        width: '100%',
+        maxWidth: 380, width: '100%',
         textAlign: 'center',
         animation: 'fadeIn 0.4s ease-out',
       }}>
-        <div style={{ fontSize: 56, marginBottom: 8 }}>
-          {isNewBest ? '🏆' : '😢'}
-        </div>
+        <div style={{ fontSize: 56, marginBottom: 8 }}>{isNewBest ? '🏆' : '😢'}</div>
         <h2 style={{
-          fontSize: 28,
-          fontWeight: 900,
+          fontSize: 28, fontWeight: 900,
           color: isNewBest ? ACCENT : '#fff',
           margin: '0 0 6px',
           textShadow: isNewBest ? `0 0 30px ${ACCENT}` : 'none',
@@ -1228,12 +1251,10 @@ function GameOverScreen({
         </p>
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 24, flexWrap: 'wrap' }}>
-          <ScoreStat label="SCORE" value={score} color={THEME} />
-          <ScoreStat label="BEST" value={bestScore} color={ACCENT} />
-          <ScoreStat label="LEVEL" value={level} color="#aa88ff" />
-          {maxCombo > 0 && (
-            <ScoreStat label="BEST COMBO" value={maxCombo} color="#ff8800" suffix="x" />
-          )}
+          <ScoreStat label="SCORE"      value={score}    color={THEME} />
+          <ScoreStat label="BEST"       value={bestScore} color={ACCENT} />
+          <ScoreStat label="LEVEL"      value={level}    color="#aa88ff" />
+          {maxCombo > 0 && <ScoreStat label="BEST COMBO" value={maxCombo} color="#ff8800" suffix="x" />}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1241,16 +1262,10 @@ function GameOverScreen({
             onClick={onRestart}
             style={{
               background: `linear-gradient(135deg, ${THEME}, #ff44aa)`,
-              border: 'none',
-              color: '#fff',
-              padding: '16px 0',
-              borderRadius: 14,
-              fontSize: 15,
-              fontWeight: 800,
-              cursor: 'pointer',
-              letterSpacing: 2,
-              fontFamily: 'inherit',
-              width: '100%',
+              border: 'none', color: '#fff',
+              padding: '16px 0', borderRadius: 14,
+              fontSize: 15, fontWeight: 800, cursor: 'pointer',
+              letterSpacing: 2, fontFamily: 'inherit', width: '100%',
               touchAction: 'manipulation',
               boxShadow: `0 4px 20px ${THEME}44`,
             }}
@@ -1263,14 +1278,9 @@ function GameOverScreen({
               background: 'rgba(255,255,255,0.06)',
               border: '1px solid rgba(255,255,255,0.1)',
               color: '#aaa',
-              padding: '14px 0',
-              borderRadius: 14,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              letterSpacing: 2,
-              fontFamily: 'inherit',
-              width: '100%',
+              padding: '14px 0', borderRadius: 14,
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              letterSpacing: 2, fontFamily: 'inherit', width: '100%',
               touchAction: 'manipulation',
             }}
           >
