@@ -19,6 +19,9 @@ import {
   playLevelUp,
   playGameStart,
   playGameOver,
+  playCombo,
+  playCandyRain,
+  playPowerup,
   setMuted,
 } from '@/lib/games/candy-catch/sounds';
 import { usePoki } from '@/lib/poki/usePoki';
@@ -27,6 +30,13 @@ import { safeStorage } from '@/lib/poki/safeStorage';
 const THEME = '#ff6eb4';
 const ACCENT = '#ffde59';
 const BASKET_Y = 87; // percent from top
+
+const SCORE_MILESTONES: { threshold: number; text: string }[] = [
+  { threshold: 100,  text: 'SWEET! 🍬' },
+  { threshold: 300,  text: 'SUGAR RUSH! ⚡' },
+  { threshold: 500,  text: 'CANDY STORM! 🌪️' },
+  { threshold: 1000, text: 'CANDY GOD! 👑' },
+];
 
 // ─── Confetti ─────────────────────────────────────────────────────────────────
 function Confetti() {
@@ -90,6 +100,16 @@ export default function GameScene() {
   const [shakeBasket, setShakeBasket] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
 
+  // Visual effects state
+  const [bombFlash, setBombFlash] = useState(false); // red bg flash on bomb
+  const [powerupFlash, setPowerupFlash] = useState<{ text: string; key: number } | null>(null);
+  const [milestoneFlash, setMilestoneFlash] = useState<{ text: string; key: number } | null>(null);
+  const [comboBreakFlash, setComboBreakFlash] = useState<{ key: number } | null>(null);
+  const [prevComboMultiplier, setPrevComboMultiplier] = useState(1);
+
+  // Milestone tracking (per game)
+  const milestonesHitRef = useRef<Set<number>>(new Set());
+
   // Refs for game loop
   const gameStateRef = useRef<GameState>(gameState);
   const spawnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -108,7 +128,7 @@ export default function GameScene() {
 
     // Restore session
     try {
-      const saved = sessionStorage.getItem('cc_session');
+      const saved = sessionStorage.getItem('cc_session_v2');
       if (saved) {
         const data = JSON.parse(saved);
         if (data.gameState?.phase === 'playing') {
@@ -127,17 +147,49 @@ export default function GameScene() {
   // Persist session
   useEffect(() => {
     if (gameState.phase !== 'idle') {
-      sessionStorage.setItem('cc_session', JSON.stringify({ difficulty, gameState }));
+      sessionStorage.setItem('cc_session_v2', JSON.stringify({ difficulty, gameState }));
     }
   }, [gameState, difficulty]);
 
   // Point flash
   useEffect(() => {
     if (!gameState.lastCatch) return;
-    setPointFlash({ text: `+${gameState.lastCatch.points}`, key: gameState.lastCatch.key });
-    const t = setTimeout(() => setPointFlash(null), 1000);
-    return () => clearTimeout(t);
+    if (gameState.lastCatch.points > 0) {
+      setPointFlash({ text: `+${gameState.lastCatch.points}`, key: gameState.lastCatch.key });
+      const t = setTimeout(() => setPointFlash(null), 1000);
+      return () => clearTimeout(t);
+    }
   }, [gameState.lastCatch]);
+
+  // Score milestone flash
+  useEffect(() => {
+    if (gameState.phase !== 'playing') return;
+    for (const m of SCORE_MILESTONES) {
+      if (gameState.score >= m.threshold && !milestonesHitRef.current.has(m.threshold)) {
+        milestonesHitRef.current.add(m.threshold);
+        setMilestoneFlash({ text: m.text, key: Date.now() });
+        const t = setTimeout(() => setMilestoneFlash(null), 1500);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [gameState.score, gameState.phase]);
+
+  // Combo break flash
+  useEffect(() => {
+    if (!gameState.lastComboBreak) return;
+    setComboBreakFlash({ key: gameState.lastComboBreak });
+    const t = setTimeout(() => setComboBreakFlash(null), 1200);
+    return () => clearTimeout(t);
+  }, [gameState.lastComboBreak]);
+
+  // Combo multiplier level-up pulse
+  useEffect(() => {
+    if (gameState.comboMultiplier > prevComboMultiplier) {
+      setPrevComboMultiplier(gameState.comboMultiplier);
+    } else if (gameState.comboMultiplier < prevComboMultiplier) {
+      setPrevComboMultiplier(gameState.comboMultiplier);
+    }
+  }, [gameState.comboMultiplier, prevComboMultiplier]);
 
   const stopGameLoop = useCallback(() => {
     if (spawnTimerRef.current) clearTimeout(spawnTimerRef.current);
@@ -171,8 +223,24 @@ export default function GameScene() {
     tickTimerRef.current = setInterval(() => {
       setGameState(prev => {
         if (prev.phase !== 'playing') return prev;
-        let next = tickItems(prev);
+
+        // Apply magnet effect before tick
+        let stateWithMagnet = prev;
+        if (prev.activePowerups.magnet !== null) {
+          const pulledItems = prev.items.map(item => {
+            if (item.type === 'candy' || item.type === 'star') {
+              const pull = (prev.basketX - item.x) * 0.04;
+              return { ...item, x: item.x + pull };
+            }
+            return item;
+          });
+          stateWithMagnet = { ...prev, items: pulledItems };
+        }
+
+        let next = tickItems(stateWithMagnet);
         const prevLevel = prev.level;
+        const prevCombo = prev.combo;
+        const prevCandyRain = prev.candyRain.active;
         next = checkCollisions(next);
 
         // Level up sound
@@ -180,17 +248,39 @@ export default function GameScene() {
           playLevelUp();
         }
 
+        // Candy rain started
+        if (!prevCandyRain && next.candyRain.active) {
+          playCandyRain();
+        }
+
         // Catch sound
         if (next.lastCatch && next.lastCatch !== prev.lastCatch) {
-          if (next.lastCatch.points >= 20) playCatchBig();
-          else playCatch();
+          const isPowerup = ['🧲', '⚡', '❤️', '🎁', '💥'].includes(next.lastCatch.emoji);
+          if (isPowerup) {
+            playPowerup();
+            setPowerupFlash({ text: getPowerupFlashText(next.lastCatch.emoji), key: next.lastCatch.key });
+            setTimeout(() => setPowerupFlash(null), 1200);
+          } else if (next.lastCatch.points >= 20) {
+            playCatchBig();
+          } else {
+            playCatch();
+          }
+        }
+
+        // Combo milestone sound (when crossing a combo tier)
+        const prevMultiplier = getComboMultiplierValue(prevCombo);
+        const nextMultiplier = getComboMultiplierValue(next.combo);
+        if (nextMultiplier > prevMultiplier) {
+          playCombo();
         }
 
         // Bomb hit
         if (next.lives < prev.lives) {
           playBomb();
           setShakeBasket(true);
+          setBombFlash(true);
           setTimeout(() => setShakeBasket(false), 500);
+          setTimeout(() => setBombFlash(false), 300);
         }
 
         // Game over
@@ -219,6 +309,8 @@ export default function GameScene() {
     setGameStarted(true);
     setShowConfetti(false);
     levelRef.current = 1;
+    milestonesHitRef.current = new Set();
+    setPrevComboMultiplier(1);
     playGameStart();
     poki.gameplayStart();
 
@@ -241,6 +333,8 @@ export default function GameScene() {
   const handleRestart = useCallback(() => {
     stopGameLoop();
     setShowConfetti(false);
+    milestonesHitRef.current = new Set();
+    setPrevComboMultiplier(1);
     const newState = startGame(createInitialState(difficulty));
     setGameState(newState);
     playGameStart();
@@ -250,7 +344,7 @@ export default function GameScene() {
 
   const handleBackToMenu = useCallback(() => {
     stopGameLoop();
-    sessionStorage.removeItem('cc_session');
+    sessionStorage.removeItem('cc_session_v2');
     setGameStarted(false);
     setShowConfetti(false);
     setGameState(createInitialState(difficulty));
@@ -321,6 +415,13 @@ export default function GameScene() {
   const isGameOver = gameState.phase === 'gameover';
   const isIdle = !gameStarted;
 
+  // Power-up time remaining (seconds)
+  const now = Date.now();
+  const magnetSecsLeft = gameState.activePowerups.magnet ? Math.max(0, Math.ceil((gameState.activePowerups.magnet - now) / 1000)) : 0;
+  const wideSecsLeft = gameState.activePowerups.wide ? Math.max(0, Math.ceil((gameState.activePowerups.wide - now) / 1000)) : 0;
+
+  const comboColor = gameState.comboMultiplier >= 4 ? '#ff2255' : gameState.comboMultiplier === 3 ? '#ff8800' : '#ffde59';
+
   return (
     <div
       style={{
@@ -335,6 +436,67 @@ export default function GameScene() {
     >
       {/* ── Confetti ── */}
       {showConfetti && <Confetti />}
+
+      {/* ── Bomb flash overlay ── */}
+      {bombFlash && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(255, 0, 0, 0.30)',
+          pointerEvents: 'none',
+          zIndex: 45,
+          animation: 'bombFlash 0.3s ease-out forwards',
+        }} />
+      )}
+
+      {/* ── Candy rain overlay ── */}
+      {gameState.candyRain.active && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: 'none',
+          zIndex: 35,
+        }}>
+          <div style={{
+            fontSize: 'clamp(28px, 7vw, 52px)',
+            fontWeight: 900,
+            color: '#ffde59',
+            textAlign: 'center',
+            textShadow: '0 0 40px #ff6eb4, 0 0 80px #ffde59',
+            animation: 'candyRainPulse 0.6s ease-in-out infinite alternate',
+            letterSpacing: -1,
+          }}>
+            🍬 CANDY RAIN! 🍬
+          </div>
+        </div>
+      )}
+
+      {/* ── Milestone flash ── */}
+      {milestoneFlash && (
+        <div
+          key={milestoneFlash.key}
+          style={{
+            position: 'fixed',
+            top: '40%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            fontSize: 'clamp(26px, 6vw, 44px)',
+            fontWeight: 900,
+            color: ACCENT,
+            pointerEvents: 'none',
+            zIndex: 42,
+            animation: 'milestoneAppear 1.5s ease-out forwards',
+            textShadow: `0 0 30px ${ACCENT}, 0 0 60px ${THEME}`,
+            whiteSpace: 'nowrap',
+            textAlign: 'center',
+          }}
+        >
+          {milestoneFlash.text}
+        </div>
+      )}
 
       {/* ── Game area (falling items + basket) ── */}
       {(isPlaying || isGameOver) && (
@@ -357,7 +519,13 @@ export default function GameScene() {
                 top: `${item.y}%`,
                 transform: 'translate(-50%, -50%)',
                 fontSize: 'clamp(28px, 5vw, 44px)',
-                filter: item.type === 'bomb' ? 'drop-shadow(0 0 8px #ff4444)' : 'drop-shadow(0 0 6px rgba(255,220,100,0.7))',
+                filter: item.type === 'bomb'
+                  ? 'drop-shadow(0 0 8px #ff4444)'
+                  : item.type === 'star'
+                    ? 'drop-shadow(0 0 10px #ffde59) drop-shadow(0 0 20px #ffaa00)'
+                    : ['magnet', 'wide', 'heart', 'mystery'].includes(item.type)
+                      ? 'drop-shadow(0 0 10px #aa44ff) drop-shadow(0 0 20px #ff6eb4)'
+                      : 'drop-shadow(0 0 6px rgba(255,220,100,0.7))',
                 transition: 'none',
                 pointerEvents: 'none',
               }}
@@ -375,13 +543,29 @@ export default function GameScene() {
               transform: `translate(-50%, -50%) ${shakeBasket ? 'translateX(6px)' : ''}`,
               transition: shakeBasket ? 'none' : 'transform 0.05s',
               fontSize: 'clamp(40px, 8vw, 64px)',
-              filter: `drop-shadow(0 0 12px ${THEME})`,
+              filter: `drop-shadow(0 0 12px ${gameState.activePowerups.wide ? '#44aaff' : THEME})`,
               pointerEvents: 'none',
               animation: shakeBasket ? 'shake 0.5s ease-in-out' : 'none',
             }}
           >
             🧺
           </div>
+
+          {/* Wide basket indicator — visual width bar */}
+          {gameState.activePowerups.wide && (
+            <div style={{
+              position: 'absolute',
+              left: `${gameState.basketX}%`,
+              top: `${BASKET_Y}%`,
+              transform: 'translate(-50%, -50%)',
+              width: '20%',
+              height: 4,
+              background: 'linear-gradient(90deg, transparent, #44aaff88, transparent)',
+              borderRadius: 2,
+              pointerEvents: 'none',
+              marginTop: 36,
+            }} />
+          )}
 
           {/* Ground line */}
           <div style={{
@@ -408,6 +592,7 @@ export default function GameScene() {
           alignItems: 'flex-start',
           pointerEvents: 'none',
           zIndex: 20,
+          flexWrap: 'wrap',
         }}>
           {/* Score */}
           <HudPanel>
@@ -428,6 +613,60 @@ export default function GameScene() {
             <HudLabel>LEVEL</HudLabel>
             <HudValue color={THEME}>{gameState.level}</HudValue>
           </HudPanel>
+
+          {/* Combo panel — only when combo >= 3 */}
+          {gameState.combo >= 3 && (
+            <HudPanel style={{
+              borderColor: `${comboColor}66`,
+              background: `rgba(4,4,14,0.9)`,
+              boxShadow: `0 0 16px ${comboColor}44`,
+              animation: 'comboGlow 0.8s ease-in-out infinite alternate',
+            }}>
+              <HudLabel>COMBO</HudLabel>
+              <div style={{
+                fontSize: 15,
+                fontWeight: 900,
+                color: comboColor,
+                letterSpacing: 1,
+                textShadow: `0 0 12px ${comboColor}`,
+              }}>
+                x{gameState.comboMultiplier} {gameState.comboMultiplier >= 4 ? '🔥' : gameState.comboMultiplier === 3 ? '🔥' : '⚡'}
+              </div>
+            </HudPanel>
+          )}
+
+          {/* Active power-up pills */}
+          {magnetSecsLeft > 0 && (
+            <div style={{
+              background: 'rgba(68, 170, 255, 0.25)',
+              border: '1px solid rgba(68, 170, 255, 0.5)',
+              borderRadius: 20,
+              padding: '6px 12px',
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#44aaff',
+              backdropFilter: 'blur(10px)',
+              letterSpacing: 1,
+            }}>
+              🧲 {magnetSecsLeft}s
+            </div>
+          )}
+          {wideSecsLeft > 0 && (
+            <div style={{
+              background: 'rgba(255, 220, 89, 0.25)',
+              border: '1px solid rgba(255, 220, 89, 0.5)',
+              borderRadius: 20,
+              padding: '6px 12px',
+              fontSize: 12,
+              fontWeight: 700,
+              color: ACCENT,
+              backdropFilter: 'blur(10px)',
+              letterSpacing: 1,
+            }}>
+              ⚡ {wideSecsLeft}s
+            </div>
+          )}
+
           {/* Best */}
           <HudPanel style={{ marginLeft: 'auto' }}>
             <HudLabel>BEST</HudLabel>
@@ -474,6 +713,52 @@ export default function GameScene() {
         </div>
       )}
 
+      {/* ── Power-up catch flash ── */}
+      {powerupFlash && (
+        <div
+          key={powerupFlash.key}
+          style={{
+            position: 'fixed',
+            top: '35%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            color: '#aa44ff',
+            fontSize: 28,
+            fontWeight: 900,
+            pointerEvents: 'none',
+            zIndex: 40,
+            animation: 'pointRise 1.2s ease-out forwards',
+            textShadow: '0 0 20px #aa44ff',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {powerupFlash.text}
+        </div>
+      )}
+
+      {/* ── Combo break flash ── */}
+      {comboBreakFlash && (
+        <div
+          key={comboBreakFlash.key}
+          style={{
+            position: 'fixed',
+            top: '38%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            color: '#ff6eb4',
+            fontSize: 26,
+            fontWeight: 900,
+            pointerEvents: 'none',
+            zIndex: 40,
+            animation: 'pointRise 1.2s ease-out forwards',
+            textShadow: '0 0 20px #ff6eb4',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          COMBO BREAK 💔
+        </div>
+      )}
+
       {/* ── Mode / difficulty select (idle) ── */}
       {isIdle && (
         <ModeSelect
@@ -495,6 +780,7 @@ export default function GameScene() {
           score={gameState.score}
           bestScore={bestScore}
           level={gameState.level}
+          maxCombo={gameState.maxCombo}
           onRestart={handleRestart}
           onMenu={handleBackToMenu}
         />
@@ -525,9 +811,47 @@ export default function GameScene() {
           from { opacity: 0; transform: translateY(20px); }
           to   { opacity: 1; transform: translateY(0); }
         }
+        @keyframes bombFlash {
+          0%   { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes candyRainPulse {
+          0%   { transform: scale(1); opacity: 0.9; }
+          100% { transform: scale(1.08); opacity: 1; }
+        }
+        @keyframes milestoneAppear {
+          0%   { opacity: 0; transform: translateX(-50%) scale(0.6); }
+          15%  { opacity: 1; transform: translateX(-50%) scale(1.1); }
+          30%  { transform: translateX(-50%) scale(1.0); }
+          70%  { opacity: 1; transform: translateX(-50%) scale(1.0); }
+          100% { opacity: 0; transform: translateX(-50%) scale(0.9) translateY(-20px); }
+        }
+        @keyframes comboGlow {
+          0%   { box-shadow: 0 0 8px currentColor; }
+          100% { box-shadow: 0 0 20px currentColor; }
+        }
       `}</style>
     </div>
   );
+}
+
+// ─── Helper ────────────────────────────────────────────────────────────────────
+function getComboMultiplierValue(combo: number): number {
+  if (combo >= 10) return 4;
+  if (combo >= 6) return 3;
+  if (combo >= 3) return 2;
+  return 1;
+}
+
+function getPowerupFlashText(emoji: string): string {
+  switch (emoji) {
+    case '🧲': return '🧲 MAGNET!';
+    case '⚡': return '⚡ WIDE!';
+    case '❤️': return '❤️ +LIFE!';
+    case '🎁': return '🎁 MYSTERY!';
+    case '💥': return '💥 OOPS!';
+    default: return emoji;
+  }
 }
 
 // Pre-generate stars outside component to avoid impure calls during render
@@ -628,7 +952,7 @@ function ModeSelect({
     }}>
       {/* Back to all games */}
       <button
-        onClick={() => { sessionStorage.removeItem('cc_session'); window.location.href = '/'; }}
+        onClick={() => { sessionStorage.removeItem('cc_session_v2'); window.location.href = '/'; }}
         style={{
           position: 'absolute',
           top: 16,
@@ -699,7 +1023,7 @@ function ModeSelect({
         borderRadius: 12,
         padding: '12px 20px',
         marginBottom: 20,
-        maxWidth: 320,
+        maxWidth: 340,
         width: '100%',
         fontSize: 13,
         color: '#ccc',
@@ -708,6 +1032,8 @@ function ModeSelect({
       }}>
         <span style={{ fontSize: 20 }}>🧺</span> Catch candy, dodge bombs<br />
         <span style={{ fontSize: 20 }}>💣</span> Bombs cost a life<br />
+        <span style={{ fontSize: 20 }}>🔥</span> Build combos for score multipliers!<br />
+        <span style={{ fontSize: 20 }}>⭐🧲⚡❤️🎁</span> Power-ups drop too!<br />
         <span style={{ fontSize: 20 }}>⬅️➡️</span> Arrow keys or drag to move
       </div>
 
@@ -791,7 +1117,13 @@ function RulesModal({ onClose }: { onClose: (hideForever: boolean) => void }) {
           💣 Avoid the bombs — they cost a life<br />
           ❤️ You have 3 lives<br />
           ⚡ Speed increases every 10 catches<br />
-          🏆 Beat your high score!<br />
+          🔥 Combos: 3+ catches in a row = x2, 6+ = x3, 10+ = x4!<br />
+          ⭐ Stars are worth 3x points<br />
+          🧲 Magnet pulls candy toward you (4s)<br />
+          ⚡ Wide net doubles catch range (5s)<br />
+          ❤️ Heart restores a life<br />
+          🎁 Mystery box: +50 pts or bomb effect!<br />
+          🍬 Every 5 levels: CANDY RAIN!<br />
           <br />
           <span style={{ color: '#888', fontSize: 12 }}>
             ← → Arrow keys, A/D, or drag to move
@@ -845,12 +1177,14 @@ function GameOverScreen({
   score,
   bestScore,
   level,
+  maxCombo,
   onRestart,
   onMenu,
 }: {
   score: number;
   bestScore: number;
   level: number;
+  maxCombo: number;
   onRestart: () => void;
   onMenu: () => void;
 }) {
@@ -872,7 +1206,7 @@ function GameOverScreen({
         border: `2px solid ${isNewBest ? ACCENT : THEME}66`,
         borderRadius: 24,
         padding: 'clamp(24px, 5vw, 48px)',
-        maxWidth: 360,
+        maxWidth: 380,
         width: '100%',
         textAlign: 'center',
         animation: 'fadeIn 0.4s ease-out',
@@ -893,10 +1227,13 @@ function GameOverScreen({
           {isNewBest ? 'You crushed it! 🎉' : 'Better luck next time!'}
         </p>
 
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 24 }}>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 24, flexWrap: 'wrap' }}>
           <ScoreStat label="SCORE" value={score} color={THEME} />
           <ScoreStat label="BEST" value={bestScore} color={ACCENT} />
           <ScoreStat label="LEVEL" value={level} color="#aa88ff" />
+          {maxCombo > 0 && (
+            <ScoreStat label="BEST COMBO" value={maxCombo} color="#ff8800" suffix="x" />
+          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -945,17 +1282,18 @@ function GameOverScreen({
   );
 }
 
-function ScoreStat({ label, value, color }: { label: string; value: number; color: string }) {
+function ScoreStat({ label, value, color, suffix = '' }: { label: string; value: number; color: string; suffix?: string }) {
   return (
     <div style={{
       background: 'rgba(255,255,255,0.05)',
       border: '1px solid rgba(255,255,255,0.08)',
       borderRadius: 12,
-      padding: '12px 16px',
+      padding: '12px 14px',
       flex: 1,
+      minWidth: 70,
     }}>
       <div style={{ color: '#555', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-      <div style={{ color, fontSize: 22, fontWeight: 900 }}>{value}</div>
+      <div style={{ color, fontSize: 20, fontWeight: 900 }}>{value}{suffix}</div>
     </div>
   );
 }
