@@ -29,6 +29,20 @@ export const games: GameDefinition[] = [
     themeColor: '#ff4444',
     accentColor: '#f5c842',
   },
+  {
+    id: 'candy-catch',
+    name: 'Candy Catch',
+    description: 'Catch falling candy, dodge the bombs. How high can you score?',
+    tagline: 'Sweet reflexes only',
+    tvShow: 'Original',
+    emoji: '🍬',
+    thumbnail: '/candy-catch/thumb.png',
+    maxPlayers: 1,
+    modes: ['solo'],
+    subdomain: 'candycatch',
+    themeColor: '#ff6eb4',
+    accentColor: '#ffde59',
+  },
 ];
 
 export function getGameBySubdomain(subdomain: string): GameDefinition | undefined {
