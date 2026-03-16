@@ -27,6 +27,7 @@ import HUD from '@/lib/games/run-horses/components/HUD';
 import { usePartyGame } from '@/lib/multiplayer/usePartyGame';
 import type { LastMove } from '@/lib/multiplayer/types';
 import { usePoki } from '@/lib/poki/usePoki';
+import { useCrazyGames } from '@/lib/crazygames/useCrazyGames';
 import { safeStorage } from '@/lib/poki/safeStorage';
 
 // ─── Mobile tap handler ───────────────────────────────────────────────────────
@@ -245,6 +246,7 @@ export default function GameScene() {
   }>({ selectedCell: null, validMoves: [] });
 
   const poki = usePoki();
+  const cg = useCrazyGames();
 
   // Always call hook — pass null when not in online mode (hook becomes a no-op)
   const partyGame = usePartyGame<GameState>(gameMode === 'online' ? onlineRoomId : null, {
@@ -336,14 +338,16 @@ export default function GameScene() {
     if (!displayWinner) { setAdBreakActive(false); return; }
     setAdBreakActive(true);
     poki.commercialBreak(suspendAudio).then(() => { resumeAudio(); setAdBreakActive(false); });
+    cg.midgameAd(suspendAudio).then(() => resumeAudio());
   }, [displayWinner]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Poki gameplay lifecycle ───────────────────────────────────────────────────
+  // ── Poki / CrazyGames gameplay lifecycle ─────────────────────────────────────
   // Online: start on 'playing' status, restart after rematch (winner cleared)
   useEffect(() => {
     if (gameMode !== 'online') return;
     if (partyGame.status === 'playing' && !partyGame.gameState.winner) {
       poki.gameplayStart();
+      cg.gameplayStart();
     }
   }, [gameMode, partyGame.status, partyGame.gameState.winner]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -352,6 +356,7 @@ export default function GameScene() {
     if (gameMode === 'online') return;
     if (!gameState.winner) { setDisplayWinner(null); return; }
     poki.gameplayStop();
+    cg.gameplayStop();
     const id = window.setTimeout(() => {
       setDisplayWinner(gameState.winner);
       playWin();
@@ -387,6 +392,7 @@ export default function GameScene() {
     const winner = partyGame.gameState.winner;
     if (!winner) { setDisplayWinner(null); return; }
     poki.gameplayStop();
+    cg.gameplayStop();
     const id = window.setTimeout(() => {
       setDisplayWinner(winner);
       playWin();
@@ -522,10 +528,12 @@ export default function GameScene() {
     setMoveHistory([]);
     setGameState(createInitialState());
     poki.gameplayStart();
+    cg.gameplayStart();
   };
 
   const handleChangeMode = () => {
     poki.gameplayStop();
+    cg.gameplayStop();
     sessionStorage.removeItem('rh_session');
     setAiThinking(false);
     setGameState(createInitialState());
@@ -558,6 +566,7 @@ export default function GameScene() {
     setLastMove(null);
     setMoveHistory([]);
     poki.gameplayStart();
+    cg.gameplayStart();
     track('game_started', { mode, difficulty: mode === 'ai' ? d : 'pvp' });
   };
 
