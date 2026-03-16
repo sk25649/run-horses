@@ -25,6 +25,7 @@ import {
   setMuted,
 } from '@/lib/games/candy-catch/sounds';
 import { usePoki } from '@/lib/poki/usePoki';
+import { useCrazyGames } from '@/lib/crazygames/useCrazyGames';
 import { safeStorage } from '@/lib/poki/safeStorage';
 
 const THEME = '#ff6eb4';
@@ -117,6 +118,7 @@ function Confetti() {
 // ─── Main GameScene ───────────────────────────────────────────────────────────
 export default function GameScene() {
   const poki = usePoki();
+  const cg = useCrazyGames();
 
   // ── Menu / phase state ──────────────────────────────────────────────────────
   const [gamePhase, setGamePhase] = useState<GameState['phase']>('idle');
@@ -452,6 +454,8 @@ export default function GameScene() {
           playGameOver();
           poki.gameplayStop();
           poki.commercialBreak().catch(() => {});
+          cg.gameplayStop();
+          cg.midgameAd().catch(() => {});
           const newBest = Math.max(nextState.score, bestScoreRef.current);
           bestScoreRef.current = newBest;
           safeStorage.setItem('cc_best', String(newBest));
@@ -459,7 +463,8 @@ export default function GameScene() {
           setFinalScore(nextState.score);
           setFinalLevel(nextState.level);
           setFinalMaxCombo(nextState.maxCombo);
-          if (nextState.score >= newBest && nextState.score > 0) setShowConfetti(true);
+          const isNewBestScore = nextState.score >= newBest && nextState.score > 0;
+          if (isNewBestScore) { setShowConfetti(true); cg.happytime(); }
           setGamePhase('gameover');
           if (canvasRef.current) drawFrame(canvasRef.current, nextState, now);
           return; // exit loop
@@ -584,6 +589,7 @@ export default function GameScene() {
     setShowConfetti(false);
     playGameStart();
     poki.gameplayStart();
+    cg.gameplayStart();
 
     if (!rulesShownRef.current && safeStorage.getItem('cc_hide_rules') !== '1') {
       rulesShownRef.current = true;
@@ -592,7 +598,7 @@ export default function GameScene() {
     } else {
       startLoop();
     }
-  }, [poki, startLoop, resetEffectRefs, resetHudState]);
+  }, [poki, cg, startLoop, resetEffectRefs, resetHudState]);
 
   const handleCloseRules = useCallback((hideForever: boolean) => {
     if (hideForever) safeStorage.setItem('cc_hide_rules', '1');
@@ -610,8 +616,9 @@ export default function GameScene() {
     setGamePhase('playing');
     playGameStart();
     poki.gameplayStart();
+    cg.gameplayStart();
     startLoop();
-  }, [difficulty, poki, startLoop, stopLoop, resetEffectRefs, resetHudState]);
+  }, [difficulty, poki, cg, startLoop, stopLoop, resetEffectRefs, resetHudState]);
 
   const handleBackToMenu = useCallback(() => {
     stopLoop();
@@ -621,7 +628,8 @@ export default function GameScene() {
     setGamePhase('idle');
     gameStateRef.current = createInitialState(difficulty);
     poki.gameplayStop();
-  }, [difficulty, poki, stopLoop]);
+    cg.gameplayStop();
+  }, [difficulty, poki, cg, stopLoop]);
 
   const handleMuteToggle = useCallback(() => {
     const next = !muted;

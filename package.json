@@ -13,6 +13,9 @@
     "test:coverage": "vitest run --coverage",
     "build:poki:run-horses": "bash scripts/build-poki.sh run-horses",
     "build:poki:minefield": "bash scripts/build-poki.sh minefield",
+    "build:crazygames:candy-catch": "bash scripts/build-crazygames.sh candy-catch",
+    "build:crazygames:run-horses": "bash scripts/build-crazygames.sh run-horses",
+    "build:crazygames:minefield": "bash scripts/build-crazygames.sh minefield",
     "poki:upload:run-horses": "npm run build:poki:run-horses && poki upload",
     "poki:upload:minefield": "npm run build:poki:minefield && poki upload"
   },

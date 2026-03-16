@@ -32,6 +32,7 @@ import HUD from './HUD';
 import { useMinesPartyGame } from '@/lib/games/minefield/useMinesPartyGame';
 import { track } from '@vercel/analytics';
 import { usePoki } from '@/lib/poki/usePoki';
+import { useCrazyGames } from '@/lib/crazygames/useCrazyGames';
 import { safeStorage } from '@/lib/poki/safeStorage';
 
 // ─── Mobile tap handler ───────────────────────────────────────────────────────
@@ -193,6 +194,7 @@ export default function GameScene() {
   });
 
   const poki = usePoki();
+  const cg = useCrazyGames();
 
   // Online hook
   const partyGame = useMinesPartyGame(
@@ -291,15 +293,17 @@ export default function GameScene() {
     if (!displayWinner) { setAdBreakActive(false); return; }
     setAdBreakActive(true);
     poki.commercialBreak(suspendAudio).then(() => { resumeAudio(); setAdBreakActive(false); });
+    cg.midgameAd(suspendAudio).then(() => resumeAudio());
   }, [displayWinner]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Poki gameplay lifecycle ───────────────────────────────────────────────
+  // ── Poki / CrazyGames gameplay lifecycle ─────────────────────────────────
   // Start when moving phase begins; also handles rematch (placement → moving again)
   const prevPhaseRef = useRef<string | null>(null);
   useEffect(() => {
     const phase = activeGameState.phase;
     if (phase === 'moving' && prevPhaseRef.current === 'placement') {
       poki.gameplayStart();
+      cg.gameplayStart();
     }
     prevPhaseRef.current = phase;
   }, [activeGameState.phase]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -309,6 +313,7 @@ export default function GameScene() {
   useEffect(() => {
     if (!winnerRaw) { setDisplayWinner(null); return; }
     poki.gameplayStop();
+    cg.gameplayStop();
     const id = window.setTimeout(() => {
       setDisplayWinner(winnerRaw);
       const localWon = gameMode === 'online' ? winnerRaw === partyGame.myColor : winnerRaw === 'white';
@@ -488,6 +493,7 @@ export default function GameScene() {
   // ── Change mode ───────────────────────────────────────────────────────────
   const handleChangeMode = () => {
     poki.gameplayStop();
+    cg.gameplayStop();
     sessionStorage.removeItem('mo_session_v2');
     setGameMode(null);
     setGameState(createInitialState());
