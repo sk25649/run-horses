@@ -209,7 +209,7 @@ export function moveBasket(state: GameState, newX: number): GameState {
 // Returns updated state after checking collisions
 // basketWidth: 12% of screen width on each side
 export function checkCollisions(state: GameState, basketWidth = 10): GameState {
-  const BASKET_Y = 87; // % from top
+  const BASKET_Y = 72; // % from top — must match BASKET_Y_PCT in GameScene.tsx
   let { score, lives, catchCount, level, lastCatch, combo, maxCombo, comboMultiplier, lastComboBreak, activePowerups, candyRain } = state;
   let hitBomb = false;
   let catchInfo: { emoji: string; points: number } | undefined;
