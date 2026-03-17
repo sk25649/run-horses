@@ -30,7 +30,7 @@ import { safeStorage } from '@/lib/poki/safeStorage';
 
 const THEME = '#ff6eb4';
 const ACCENT = '#ffde59';
-const BASKET_Y_PCT = 87; // percent from top
+const BASKET_Y_PCT = 82; // percent from top — moved up to avoid iPhone toolbar overlap
 const TICK_MS = 1000 / 60; // ~16.67 ms — fixed physics step
 
 const SCORE_MILESTONES: { threshold: number; text: string }[] = [
@@ -277,6 +277,9 @@ export default function GameScene() {
 
     let basketXPx = state.basketX * W / 100;
     const basketYPx = BASKET_Y_PCT * H / 100;
+    // Render basket above the touch/collision point so thumb doesn't cover it
+    const TOUCH_OFFSET_PX = Math.round(H * 0.08); // ~8% of screen height above finger
+    const basketRenderY = basketYPx - TOUCH_OFFSET_PX;
 
     // Shake oscillation
     if (now < shakeUntilRef.current) {
@@ -286,14 +289,14 @@ export default function GameScene() {
 
     ctx.shadowColor = state.activePowerups.wide ? '#44aaff' : THEME;
     ctx.shadowBlur = 12;
-    ctx.fillText('🧺', basketXPx, basketYPx);
+    ctx.fillText('🧺', basketXPx, basketRenderY);
 
     // Wide basket indicator bar
     if (state.activePowerups.wide) {
       ctx.shadowBlur = 0;
       ctx.shadowColor = 'transparent';
       const barW = W * 0.20;
-      const barY = basketYPx + basketFontSize * 0.55;
+      const barY = basketRenderY + basketFontSize * 0.55;
       const grad = ctx.createLinearGradient(basketXPx - barW / 2, 0, basketXPx + barW / 2, 0);
       grad.addColorStop(0, 'transparent');
       grad.addColorStop(0.5, '#44aaff88');
@@ -655,7 +658,7 @@ export default function GameScene() {
     <div
       style={{
         width: '100vw',
-        height: '100vh',
+        height: '100dvh', // dvh respects browser UI chrome on mobile (iOS toolbar)
         background: 'linear-gradient(180deg, #1a0a2e 0%, #2d1060 50%, #1a0a2e 100%)',
         fontFamily: "'Segoe UI', system-ui, sans-serif",
         overflow: 'hidden',
@@ -1163,10 +1166,12 @@ function RulesModal({ onClose }: { onClose: (hideForever: boolean) => void }) {
         background: 'linear-gradient(135deg, #1a0a2e, #2d1060)',
         border: `2px solid ${THEME}44`,
         borderRadius: 20,
-        padding: 'clamp(20px, 4vw, 40px)',
+        padding: 'clamp(16px, 4vw, 36px)',
         maxWidth: 380, width: '100%',
         textAlign: 'center',
         animation: 'fadeIn 0.3s ease-out',
+        maxHeight: 'calc(100dvh - 80px)',
+        overflowY: 'auto',
       }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>🍬</div>
         <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 900, margin: '0 0 16px', letterSpacing: -0.5 }}>
@@ -1240,10 +1245,12 @@ function GameOverScreen({
         background: 'linear-gradient(135deg, #1a0a2e, #2d1060)',
         border: `2px solid ${isNewBest ? ACCENT : THEME}66`,
         borderRadius: 24,
-        padding: 'clamp(24px, 5vw, 48px)',
+        padding: 'clamp(16px, 4vw, 40px)',
         maxWidth: 380, width: '100%',
         textAlign: 'center',
         animation: 'fadeIn 0.4s ease-out',
+        maxHeight: 'calc(100dvh - 80px)',
+        overflowY: 'auto',
       }}>
         <div style={{ fontSize: 56, marginBottom: 8 }}>{isNewBest ? '🏆' : '😢'}</div>
         <h2 style={{
@@ -1258,7 +1265,7 @@ function GameOverScreen({
           {isNewBest ? 'You crushed it! 🎉' : 'Better luck next time!'}
         </p>
 
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 24, flexWrap: 'wrap' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 24 }}>
           <ScoreStat label="SCORE"      value={score}    color={THEME} />
           <ScoreStat label="BEST"       value={bestScore} color={ACCENT} />
           <ScoreStat label="LEVEL"      value={level}    color="#aa88ff" />
@@ -1306,9 +1313,7 @@ function ScoreStat({ label, value, color, suffix = '' }: { label: string; value:
       background: 'rgba(255,255,255,0.05)',
       border: '1px solid rgba(255,255,255,0.08)',
       borderRadius: 12,
-      padding: '12px 14px',
-      flex: 1,
-      minWidth: 0,
+      padding: '10px 12px',
     }}>
       <div style={{ color: '#555', fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4, whiteSpace: 'nowrap' }}>{label}</div>
       <div style={{ color, fontSize: 20, fontWeight: 900 }}>{value}{suffix}</div>
